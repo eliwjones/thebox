@@ -8,9 +8,12 @@ Quick Start
 $ mkdir -p $GOPATH/src/github.com/eliwjones
 $ cd $GOPATH/src/github.com/eliwjones
 $ git clone git@github.com:eliwjones/thebox.git
-$ cd thebox && go test -v
+$ cd thebox
+$ go test -v money/*
 === RUN Test_Money
 --- PASS: Test_Money (0.00 seconds)
+PASS
+$ go test -v destinations/*
 === RUN Test_Destinations
 --- PASS: Test_Destinations (0.00 seconds)
 PASS
