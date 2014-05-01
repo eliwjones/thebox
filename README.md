@@ -11,5 +11,7 @@ $ git clone git@github.com:eliwjones/thebox.git
 $ cd thebox && go test -v
 === RUN Test_Money
 --- PASS: Test_Money (0.00 seconds)
+=== RUN Test_Destinations
+--- PASS: Test_Destinations (0.00 seconds)
 PASS
 ```
