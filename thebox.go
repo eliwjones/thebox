@@ -60,10 +60,15 @@ type Money struct {
 	reallot    chan chan bool      // Re-balance Allotments.
 }
 
-func (m *Money) Get() Allotment {
-	allotment := make(chan Allotment)
-	m.get <- allotment
-	return <-allotment
+func (m *Money) Get() (Allotment, error) {
+	var err error
+	reply := make(chan Allotment)
+	m.get <- reply
+	allotment := <-reply
+	if allotment == (Allotment{}) {
+		err = errors.New("No Allotments")
+	}
+	return allotment, err
 }
 
 func (m *Money) Put(allotment Allotment, block bool) {
@@ -100,16 +105,18 @@ func NewMoney(cash int) *Money {
 	// Process Get,Put, ReAllot calls.
 	go func() {
 		for {
-			var allotment Allotment
 			select {
 			case c := <-m.get:
 				// Pop Allotment from m.Allotments and send it down c.
-				allotment, m.Allotments = m.Allotments[len(m.Allotments)-1], m.Allotments[:len(m.Allotments)-1]
-				m.Available -= allotment.Amount
+				allotment := Allotment{}
+				if len(m.Allotments) > 0 {
+					allotment, m.Allotments = m.Allotments[len(m.Allotments)-1], m.Allotments[:len(m.Allotments)-1]
+					m.Available -= allotment.Amount
+				}
 				c <- allotment
 			case signal := <-m.put:
 				// Push Allotment to m.Allotments.
-				allotment = signal.payload.(Allotment)
+				allotment := signal.payload.(Allotment)
 				m.Allotments = append(m.Allotments, allotment)
 				m.Available += allotment.Amount
 				if signal.wait != nil {

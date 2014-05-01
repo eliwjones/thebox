@@ -11,8 +11,11 @@ func Test_Money(t *testing.T) {
 	money.ReAllot()
 
 	total := len(money.Allotments)
-	allotment := money.Get()
+	allotment, err := money.Get()
 
+	if err != nil {
+		t.Errorf("Why is there an error if there are Allotments!")
+	}
 	if len(money.Allotments) != total-1 {
 		t.Errorf("Len of Allotments should be %d, but got: %d", total-1, len(money.Allotments))
 	}
@@ -25,6 +28,15 @@ func Test_Money(t *testing.T) {
 
 	if money.Available != money.Total {
 		t.Errorf("Available money should equal Total money! Available: %d", money.Available)
+	}
+
+	// Empty Allotments and test for err.
+	for len(money.Allotments) > 0 {
+		money.Get()
+	}
+	allotment, err = money.Get()
+	if err == nil {
+		t.Errorf("Should have received an error since no Allotments are left!")
 	}
 }
 
