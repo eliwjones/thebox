@@ -38,6 +38,13 @@ func Test_Money(t *testing.T) {
 	if err == nil {
 		t.Errorf("Should have received an error since no Allotments are left!")
 	}
+
+	// Verify cannot add empty Allotment.
+	length := len(money.Allotments)
+	money.Put(Allotment{}, true)
+	if len(money.Allotments) != length {
+		t.Errorf("Empty Allotment should not have been added!")
+	}
 }
 
 func Test_Destinations(t *testing.T) {
@@ -77,5 +84,12 @@ func Test_Destinations(t *testing.T) {
 	destinations.Decay()
 	if len(destinations.destinations) != 1 {
 		t.Errorf("Should be 1 destination now, but there are %d!", len(destinations.destinations))
+	}
+
+	// Verify cannot add empty Destination.
+	length := len(destinations.destinations)
+	destinations.Put(Destination{}, true)
+	if len(destinations.destinations) != length {
+		t.Errorf("Empty Destination should not have been added!")
 	}
 }

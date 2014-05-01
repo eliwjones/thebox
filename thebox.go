@@ -117,8 +117,11 @@ func NewMoney(cash int) *Money {
 			case signal := <-m.put:
 				// Push Allotment to m.Allotments.
 				allotment := signal.payload.(Allotment)
-				m.Allotments = append(m.Allotments, allotment)
-				m.Available += allotment.Amount
+				// Don't want empty Allotments.
+				if allotment != (Allotment{}) {
+					m.Allotments = append(m.Allotments, allotment)
+					m.Available += allotment.Amount
+				}
 				if signal.wait != nil {
 					signal.wait <- true
 				}
@@ -190,7 +193,9 @@ func NewDestinations(maxage int64) *Destinations {
 			case signal := <-d.put:
 				// Push TimestampedDestination.
 				destination := signal.payload.(Destination)
-				d.destinations = append(d.destinations, TimestampedDestination{Destination: destination, Timestamp: MS(Now())})
+				if destination != (Destination{}) {
+					d.destinations = append(d.destinations, TimestampedDestination{Destination: destination, Timestamp: MS(Now())})
+				}
 				if signal.wait != nil {
 					signal.wait <- true
 				}
