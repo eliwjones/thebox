@@ -9,12 +9,18 @@ $ mkdir -p $GOPATH/src/github.com/eliwjones
 $ cd $GOPATH/src/github.com/eliwjones
 $ git clone git@github.com:eliwjones/thebox.git
 $ cd thebox
-$ go test -v money/*
-=== RUN Test_Money
---- PASS: Test_Money (0.00 seconds)
-PASS
-$ go test -v destiny/*
+$ for i in `ls -d */`; do go test -v $i/*; done;
 === RUN Test_Destiny
 --- PASS: Test_Destiny (0.00 seconds)
 PASS
+ok  	command-line-arguments	0.003s
+=== RUN Test_Dispatcher
+--- PASS: Test_Dispatcher (0.00 seconds)
+PASS
+ok  	command-line-arguments	0.002s
+=== RUN Test_Money
+--- PASS: Test_Money (0.00 seconds)
+PASS
+ok  	command-line-arguments	0.002s
+?   	command-line-arguments	[no test files]
 ```
