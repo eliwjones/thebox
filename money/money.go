@@ -56,7 +56,7 @@ func (m *Money) ReAllot() {
 // For "idiom" on controlling access to shared map/slice.
 // Other: https://gist.github.com/deckarep/7685352
 
-func NewMoney(cash int) *Money {
+func New(cash int) *Money {
 	m := &Money{}
 	m.Total = cash
 	m.Available = cash

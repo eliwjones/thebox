@@ -6,7 +6,7 @@ import (
 
 func Test_Money(t *testing.T) {
 	cash := 1000000 * 100 // Million $ in cents.
-	money := NewMoney(cash)
+	money := New(cash)
 	money.ReAllot()
 
 	total := len(money.Allotments)
