@@ -9,6 +9,14 @@ type Signal struct {
 	Wait    chan bool
 }
 
+type Delta struct {
+}
+
+type Trade struct {
+	Allotment interface{}
+	Path      interface{}
+}
+
 /*
 type Position struct {
 	Destination destinations.Destination // Where we have arrived.

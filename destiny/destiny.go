@@ -20,11 +20,12 @@ type Path struct {
 }
 
 type Destiny struct {
-	paths    []Path           // Timestamped Destination so can decay.
-	maxage   int64            // Oldest Destination allowed.  // Should be a function?  For "easy" tuning?
-	put      chan util.Signal // New Destinations come down this channel.
-	decay    chan chan bool   // Process of decay has begun.
-	decaying bool             // Currently decaying, so block put,get.
+	destinations []Destination    // Need those destinations.
+	paths        []Path           // Timestamped paths to destinations..
+	maxage       int64            // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
+	put          chan util.Signal // New Paths come down this channel.
+	decay        chan chan bool   // Process of decay has begun.
+	decaying     bool             // Currently decaying, so block put,get.
 }
 
 func (d *Destiny) Get() (Path, error) {
