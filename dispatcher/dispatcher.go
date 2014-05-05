@@ -45,11 +45,16 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 				path, err := d.destiny.Get()
 				if err != nil {
 					// Could not get path so return allotment.
-					message.Reply <- allotment
+					if message.Reply != nil {
+						message.Reply <- allotment
+					}
 					continue
 				}
 				for _, subscriber := range d.out["trade"] {
 					subscriber <- util.Trade{Allotment: allotment, Path: path}
+				}
+				if message.Reply != nil {
+					message.Reply <- true
 				}
 			case util.Delta:
 				// Handle Delta.
