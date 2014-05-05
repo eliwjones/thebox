@@ -2,7 +2,6 @@ package destinations
 
 import (
 	"errors"
-	"github.com/eliwjones/thebox/structs"
 	"github.com/eliwjones/thebox/util"
 	"math/rand"
 )
@@ -20,7 +19,7 @@ type TimestampedDestination struct {
 type Destinations struct {
 	destinations []TimestampedDestination // Timestamped Destination so can decay.
 	maxage       int64                    // Oldest Destination allowed.  // Should be a function?  For "easy" tuning?
-	put          chan structs.Signal      // New Destinations come down this channel.
+	put          chan util.Signal         // New Destinations come down this channel.
 	decay        chan chan bool           // Process of decay has begun.
 	decaying     bool                     // Currently decaying, so block put,get.
 }
@@ -41,7 +40,7 @@ func (d *Destinations) Put(destination Destination, block bool) {
 	if block {
 		wait = make(chan bool)
 	}
-	d.put <- structs.Signal{Payload: destination, Wait: wait}
+	d.put <- util.Signal{Payload: destination, Wait: wait}
 	if block {
 		<-wait
 	}
@@ -58,7 +57,7 @@ func NewDestinations(maxage int64) *Destinations {
 	d := &Destinations{}
 	d.destinations = []TimestampedDestination{}
 	d.maxage = maxage
-	d.put = make(chan structs.Signal, 100)
+	d.put = make(chan util.Signal, 100)
 	d.decay = make(chan chan bool)
 	d.decaying = false
 
