@@ -13,8 +13,8 @@ $ go test -v money/*
 === RUN Test_Money
 --- PASS: Test_Money (0.00 seconds)
 PASS
-$ go test -v destinations/*
-=== RUN Test_Destinations
---- PASS: Test_Destinations (0.00 seconds)
+$ go test -v destiny/*
+=== RUN Test_Destiny
+--- PASS: Test_Destiny (0.00 seconds)
 PASS
 ```
