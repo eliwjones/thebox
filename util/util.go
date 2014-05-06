@@ -4,6 +4,13 @@ import (
 	"time"
 )
 
+type ContractType int
+
+const (
+	OPTION ContractType = iota
+	STOCK
+)
+
 type Signal struct {
 	Payload interface{}
 	Wait    chan bool

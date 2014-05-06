@@ -3,6 +3,7 @@ package trader
 import (
 	"github.com/eliwjones/thebox/destiny"
 	"github.com/eliwjones/thebox/money"
+	"github.com/eliwjones/thebox/util"
 	"testing"
 )
 
@@ -11,8 +12,8 @@ func Test_Trader(t *testing.T) {
 
 	po := ProtoOrder{Allotment: money.Allotment{Amount: 1000 * 100}, Path: destiny.Path{}}
 	po.Path.Destination.Symbol = "GOOG May 2014 1234 Put"
-	po.Path.Destination.Type = OPTION
-	po.Path.LimitOpen = 990           // $9.90 option.
+	po.Path.Destination.Type = util.OPTION
+	po.Path.LimitOpen = 990 // $9.90 option.
 
 	order, err := trdr.constructOrder(po)
 	if err == nil {

@@ -1,7 +1,6 @@
 package destiny
 
 import (
-	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util"
 	"testing"
 )
@@ -19,7 +18,7 @@ func Test_Destiny(t *testing.T) {
 		t.Errorf("Should have received error, but got path: %v, err: %s", path, err)
 	}
 
-	destination := Destination{Symbol: "GOOG", Type: trader.STOCK}
+	destination := Destination{Symbol: "GOOG", Type: util.STOCK}
 	path = Path{Destination: destination, Timestamp: util.MS(util.Now())}
 	destiny.Put(path, true)
 	if len(destiny.paths) != 1 {
@@ -32,7 +31,7 @@ func Test_Destiny(t *testing.T) {
 	}
 
 	now := util.MS(util.Now())
-	destination = Destination{Symbol: "AAPL", Type: trader.STOCK}
+	destination = Destination{Symbol: "AAPL", Type: util.STOCK}
 	path = Path{Destination: destination, Timestamp: now - destiny.maxage - 10}
 	destiny.Put(path, true)
 	if len(destiny.paths) != 2 {

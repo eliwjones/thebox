@@ -8,23 +8,18 @@ import (
 	"errors"
 )
 
-const (
-	OPTION = iota
-	STOCK
-)
-
 type ProtoOrder struct {
 	Allotment money.Allotment // Money alloted for order.
 	Path      destiny.Path    // How it wishes to "go out" and "return".
 }
 
 type Order struct {
-	id         string // Filled in if linked to Position.
-	symbol     string // Whatever have to submit to api.
-	volume     int    // How many of "it" do we want.
-	limitprice int    // Price in cents to pay?  (And convert with api adapter?)
-	_type      int    // STOCK, OPTION
-	maxcost    int    // Expected maximum expenditure for order.
+	id         string            // Filled in if linked to Position.
+	symbol     string            // Whatever have to submit to api.
+	volume     int               // How many of "it" do we want.
+	limitprice int               // Price in cents to pay?  (And convert with api adapter?)
+	_type      util.ContractType // STOCK, OPTION
+	maxcost    int               // Expected maximum expenditure for order.
 }
 
 type Position struct {
@@ -40,8 +35,8 @@ type Trader struct {
 	positions  []Position                             // Current outstanding positions.
 	in         chan util.Message                      // Generally, ProtoOrders coming in.
 	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
-	multiplier map[int]int
-	commission map[int]map[string]int // commission fees per type for base, unit.
+	multiplier map[util.ContractType]int
+	commission map[util.ContractType]map[string]int // commission fees per type for base, unit.
 }
 
 func New(inBuf int64) *Trader {
@@ -50,10 +45,10 @@ func New(inBuf int64) *Trader {
 	t.in = make(chan util.Message, inBuf)
 	t.out = make(map[string]map[string]chan interface{})
 
-	t.multiplier = map[int]int{OPTION: 100, STOCK: 1}
-	t.commission = map[int]map[string]int{}
-	t.commission[OPTION] = map[string]int{"base": 999, "unit": 75}
-	t.commission[STOCK] = map[string]int{"base": 999, "unit": 0}
+	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
+	t.commission = map[util.ContractType]map[string]int{}
+	t.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
+	t.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
 
 	return t
 }
