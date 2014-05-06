@@ -1,0 +1,7 @@
+**** Dispatcher ****
+
+"money" package subscribes to "delta" channel from "dispatcher".
+"trader" package subscribes to "trade" channel from "dispatcher".
+
+"dispatcher" subscribes to "delta" channel from "trader".
+
