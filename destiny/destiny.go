@@ -9,7 +9,7 @@ import (
 type Destination struct {
 	Underlying string // "GOOG",  "SPX",  // Underlying?
 	Symbol     string // function of Underlying? f(d.Underlying, 1, d.Type)
-	Type       string // "Stock", "Option", "Future"
+	Type       int    // trader.OPTION, trader.STOCK
 }
 
 type Path struct {

@@ -1,6 +1,7 @@
 package destiny
 
 import (
+	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util"
 	"testing"
 )
@@ -18,20 +19,20 @@ func Test_Destiny(t *testing.T) {
 		t.Errorf("Should have received error, but got path: %v, err: %s", path, err)
 	}
 
-	destination := Destination{Symbol: "GOOG", Type: "stock"}
+	destination := Destination{Symbol: "GOOG", Type: trader.STOCK}
 	path = Path{Destination: destination, Timestamp: util.MS(util.Now())}
 	destiny.Put(path, true)
 	if len(destiny.paths) != 1 {
 		t.Errorf("Should be 1 path, but there are %d!", len(destiny.paths))
 	}
 
-	path, err = destiny.Get()
-	if path.Destination.Symbol != "GOOG" || path.Destination.Type != "stock" {
-		t.Errorf("What have you done? Expected 'GOOG','stock' but received: %s, %s!", destination.Symbol, destination.Type)
+	dp, _ := destiny.Get()
+	if dp != path {
+		t.Errorf("Expected: %+v, Got: %+v!", path, dp)
 	}
 
 	now := util.MS(util.Now())
-	destination = Destination{Symbol: "AAPL", Type: "stock"}
+	destination = Destination{Symbol: "AAPL", Type: trader.STOCK}
 	path = Path{Destination: destination, Timestamp: now - destiny.maxage - 10}
 	destiny.Put(path, true)
 	if len(destiny.paths) != 2 {
