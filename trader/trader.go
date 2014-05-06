@@ -50,6 +50,41 @@ func New(inBuf int64) *Trader {
 	t.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
 	t.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
 
+	// Proccess incoming trades, deltas.
+	go func() {
+		for message := range t.in {
+			switch message.Data.(type) {
+			case util.Subscription:
+				s, _ := message.Data.(util.Subscription)
+				if t.out[s.Id] == nil {
+					t.out[s.Id] = make(map[string]chan interface{})
+				}
+				t.out[s.Id][s.Whoami] = s.Subscriber
+			case ProtoOrder:
+				po, _ := message.Data.(ProtoOrder)
+				o, err := t.constructOrder(po)
+				if err != nil {
+					// Can't construct order, send back.
+					if message.Reply != nil {
+						message.Reply <- po
+					}
+					continue
+				}
+				// Submit order for execution.
+				processOrder(o)
+
+				if message.Reply != nil {
+					message.Reply <- true
+				}
+			case Delta:
+				d, _ := message.Data.(Delta)
+				for _, subscriber := range t.out["delta"] {
+					subscriber <- d
+				}
+			}
+		}
+	}()
+
 	return t
 }
 
@@ -67,4 +102,15 @@ func (t *Trader) constructOrder(po ProtoOrder) (Order, error) {
 		return o, errors.New("Impossible order. Not enough Allotment to cover commission.")
 	}
 	return o, nil
+}
+
+func (t *Trader) Subscribe(id string, whoami string, subscriber chan interface{}) {
+	// Mainly to subscribe to deltas.
+	s := util.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
+	t.in <- util.Message{Data: s}
+}
+
+func processOrder(o Order) (string, error) {
+	// Ultimately, some thing that implements an interface will be used..
+	return "dummyorderID", nil
 }
