@@ -9,7 +9,7 @@ $ mkdir -p $GOPATH/src/github.com/eliwjones
 $ cd $GOPATH/src/github.com/eliwjones
 $ git clone git@github.com:eliwjones/thebox.git
 $ cd thebox
-$ for i in `ls -d */`; do go test -v $i/*; done;
+$ for i in `ls -d */`; do go test -v $i/*.go; done;
 === RUN Test_Destiny
 --- PASS: Test_Destiny (0.00 seconds)
 PASS
