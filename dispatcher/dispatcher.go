@@ -7,12 +7,6 @@ import (
 	"github.com/eliwjones/thebox/util"
 )
 
-type subscription struct {
-	id         string           // What is id of thing you are subscribing to.
-	whoami     string           // Who are you in case we need to delete.
-	subscriber chan interface{} // Where to send info.
-}
-
 type Dispatcher struct {
 	in      chan util.Message                      // Something comes in.
 	out     map[string]map[string]chan interface{} // Send things out to whoever wants "it".
@@ -29,13 +23,13 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 	go func() {
 		for message := range d.in {
 			switch message.Data.(type) {
-			case subscription:
+			case util.Subscription:
 				// Subscriptions are fairly sparse, so no need for separate channel.
-				s, _ := message.Data.(subscription)
-				if d.out[s.id] == nil {
-					d.out[s.id] = make(map[string]chan interface{})
+				s, _ := message.Data.(util.Subscription)
+				if d.out[s.Id] == nil {
+					d.out[s.Id] = make(map[string]chan interface{})
 				}
-				d.out[s.id][s.whoami] = s.subscriber
+				d.out[s.Id][s.Whoami] = s.Subscriber
 			case money.Allotment:
 				allotment, _ := message.Data.(money.Allotment)
 				path, err := d.destiny.Get()
@@ -67,6 +61,6 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 
 func (d *Dispatcher) Subscribe(id string, whoami string, subscriber chan interface{}) {
 	// Send subscription to d.in for processing.
-	s := subscription{id: id, whoami: whoami, subscriber: subscriber}
+	s := util.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
 	d.in <- util.Message{Data: s}
 }

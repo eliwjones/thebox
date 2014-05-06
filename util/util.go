@@ -11,6 +11,12 @@ const (
 	STOCK
 )
 
+type Subscription struct {
+	Id         string           // What is id of thing you are subscribing to.
+	Whoami     string           // Who are you in case we need to delete.
+	Subscriber chan interface{} // Where to send info.
+}
+
 type Signal struct {
 	Payload interface{}
 	Wait    chan bool
