@@ -14,8 +14,8 @@ type Destination struct {
 
 type Path struct {
 	Destination Destination
-	LimitOpen   string // function of current (Bid, Ask)?  Too specific??
-	LimitClose  string // function of LimitOpen?
+	LimitOpen   int // populated by function of current (Bid, Ask)?  Too specific??
+	LimitClose  int // populated by function of LimitOpen?
 	Timestamp   int64
 }
 

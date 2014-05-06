@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"github.com/eliwjones/thebox/destiny"
 	"github.com/eliwjones/thebox/money"
+	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util"
 )
 
@@ -12,20 +13,15 @@ type subscription struct {
 	subscriber chan interface{} // Where to send info.
 }
 
-type Message struct {
-	Data  interface{}      // Shall this be an interface?
-	Reply chan interface{} // Reply if needed..
-}
-
 type Dispatcher struct {
-	in      chan Message                           // Something comes in.
+	in      chan util.Message                      // Something comes in.
 	out     map[string]map[string]chan interface{} // Send things out to whoever wants "it".
 	destiny *destiny.Destiny                       // Place to get my paths from.
 }
 
 func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 	d := &Dispatcher{}
-	d.in = make(chan Message, inBuf)
+	d.in = make(chan util.Message, inBuf)
 	d.out = make(map[string]map[string]chan interface{})
 	d.destiny = dstny
 
@@ -51,14 +47,14 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 					continue
 				}
 				for _, subscriber := range d.out["trade"] {
-					subscriber <- util.Trade{Allotment: allotment, Path: path}
+					subscriber <- trader.ProtoOrder{Allotment: allotment, Path: path}
 				}
 				if message.Reply != nil {
 					message.Reply <- true
 				}
-			case util.Delta:
+			case trader.Delta:
 				// Handle Delta.
-				delta, _ := message.Data.(util.Delta)
+				delta, _ := message.Data.(trader.Delta)
 				for _, subscriber := range d.out["delta"] {
 					subscriber <- delta
 				}
@@ -72,5 +68,5 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 func (d *Dispatcher) Subscribe(id string, whoami string, subscriber chan interface{}) {
 	// Send subscription to d.in for processing.
 	s := subscription{id: id, whoami: whoami, subscriber: subscriber}
-	d.in <- Message{Data: s}
+	d.in <- util.Message{Data: s}
 }
