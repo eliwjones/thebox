@@ -15,7 +15,7 @@ type ProtoOrder struct {
 
 type Order struct {
 	id         string            // Filled in if linked to Position.
-	symbol     string            // Whatever have to submit to api.
+	Symbol     string            // Whatever have to submit to api.
 	volume     int               // How many of "it" do we want.
 	limitprice int               // Price in cents to pay?  (And convert with api adapter?)
 	_type      util.ContractType // STOCK, OPTION
@@ -89,7 +89,7 @@ func New(inBuf int64) *Trader {
 }
 
 func (t *Trader) constructOrder(po ProtoOrder) (Order, error) {
-	o := Order{symbol: po.Path.Destination.Symbol, _type: po.Path.Destination.Type}
+	o := Order{Symbol: po.Path.Destination.Symbol, _type: po.Path.Destination.Type}
 	o.volume = (po.Allotment.Amount - t.commission[o._type]["base"]) / (po.Path.LimitOpen * t.multiplier[o._type])
 	o.limitprice = po.Path.LimitOpen
 	o.maxcost = (o.volume * o.limitprice * t.multiplier[o._type]) + (o.volume * t.commission[o._type]["unit"])
