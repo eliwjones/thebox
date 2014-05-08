@@ -13,26 +13,11 @@ type ProtoOrder struct {
 	Path      destiny.Path    // How it wishes to "go out" and "return".
 }
 
-type Order struct {
-	id         string            // Filled in if linked to Position.
-	Symbol     string            // Whatever have to submit to api.
-	volume     int               // How many of "it" do we want.
-	limitprice int               // Price in cents to pay?  (And convert with api adapter?)
-	_type      util.ContractType // STOCK, OPTION
-	maxcost    int               // Expected maximum expenditure for order.
-}
-
-type Position struct {
-	id        string // Some sort of id provided by api adapter?  (Thus can submit stop limit order for buytoclose).
-	order     Order
-	fillprice int // price per unit paid in cents.
-}
-
 type Delta struct {
 }
 
 type Trader struct {
-	positions  []Position                             // Current outstanding positions.
+	positions  []util.Position                        // Current outstanding positions.
 	in         chan util.Message                      // Generally, ProtoOrders coming in.
 	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
 	multiplier map[util.ContractType]int
@@ -41,7 +26,7 @@ type Trader struct {
 
 func New(inBuf int64) *Trader {
 	t := &Trader{}
-	t.positions = []Position{}
+	t.positions = []util.Position{}
 	t.in = make(chan util.Message, inBuf)
 	t.out = make(map[string]map[string]chan interface{})
 
@@ -88,17 +73,17 @@ func New(inBuf int64) *Trader {
 	return t
 }
 
-func (t *Trader) constructOrder(po ProtoOrder) (Order, error) {
-	o := Order{Symbol: po.Path.Destination.Symbol, _type: po.Path.Destination.Type}
-	o.volume = (po.Allotment.Amount - t.commission[o._type]["base"]) / (po.Path.LimitOpen * t.multiplier[o._type])
-	o.limitprice = po.Path.LimitOpen
-	o.maxcost = (o.volume * o.limitprice * t.multiplier[o._type]) + (o.volume * t.commission[o._type]["unit"])
+func (t *Trader) constructOrder(po ProtoOrder) (util.Order, error) {
+	o := util.Order{Symbol: po.Path.Destination.Symbol, Type: po.Path.Destination.Type}
+	o.Volume = (po.Allotment.Amount - t.commission[o.Type]["base"]) / (po.Path.LimitOpen * t.multiplier[o.Type])
+	o.Limitprice = po.Path.LimitOpen
+	o.Maxcost = (o.Volume * o.Limitprice * t.multiplier[o.Type]) + (o.Volume * t.commission[o.Type]["unit"])
 	// Lazy search for acceptable volume.
-	for o.maxcost > (po.Allotment.Amount - t.commission[o._type]["base"]) {
-		o.volume--
-		o.maxcost = (o.volume * o.limitprice * t.multiplier[o._type]) + (o.volume * t.commission[o._type]["unit"])
+	for o.Maxcost > (po.Allotment.Amount - t.commission[o.Type]["base"]) {
+		o.Volume--
+		o.Maxcost = (o.Volume * o.Limitprice * t.multiplier[o.Type]) + (o.Volume * t.commission[o.Type]["unit"])
 	}
-	if o.volume == 0 {
+	if o.Volume == 0 {
 		return o, errors.New("Impossible order. Not enough Allotment to cover commission.")
 	}
 	return o, nil
@@ -110,7 +95,7 @@ func (t *Trader) Subscribe(id string, whoami string, subscriber chan interface{}
 	t.in <- util.Message{Data: s}
 }
 
-func processOrder(o Order) (string, error) {
+func processOrder(o util.Order) (string, error) {
 	// Ultimately, some thing that implements an interface will be used..
 	return "dummyorderID", nil
 }
