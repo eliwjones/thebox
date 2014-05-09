@@ -10,7 +10,7 @@ import (
 )
 
 func Test_Dispatcher(t *testing.T) {
-	dstny := destiny.New(int64(1 * 24 * 60 * 60 * 1000))
+	dstny := destiny.New(1 * 24 * 60 * 60 * 1000)
 	dispatcher := New(1024, dstny)
 
 	path := destiny.Path{LimitClose: 1, LimitOpen: 2, Timestamp: 3}

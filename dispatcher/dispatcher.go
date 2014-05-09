@@ -13,7 +13,7 @@ type Dispatcher struct {
 	destiny *destiny.Destiny                       // Place to get my paths from.
 }
 
-func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
+func New(inBuf int, dstny *destiny.Destiny) *Dispatcher {
 	d := &Dispatcher{}
 	d.in = make(chan structs.Message, inBuf)
 	d.out = make(map[string]map[string]chan interface{})
