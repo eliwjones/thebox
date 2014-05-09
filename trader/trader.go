@@ -25,7 +25,7 @@ type Trader struct {
 	commission map[util.ContractType]map[string]int // commission fees per type for base, unit.
 }
 
-func New(inBuf int64) *Trader {
+func New(inBuf int) *Trader {
 	t := &Trader{}
 	t.positions = []structs.Position{}
 	t.in = make(chan structs.Message, inBuf)
