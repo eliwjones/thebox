@@ -6,48 +6,77 @@ import (
 	"testing"
 )
 
-func Test_Destiny(t *testing.T) {
-	onedayinmilliseconds := int64(1 * 24 * 60 * 60 * 1000)
-	destiny := New(onedayinmilliseconds)
+func Test_Destiny_Get(t *testing.T) {
+	d := New(1 * 24 * 60 * 60 * 1000)
 
-	if len(destiny.paths) != 0 {
-		t.Errorf("Should be 0 destinations, but there are %d!", len(destiny.paths))
+	if len(d.paths) != 0 {
+		t.Errorf("Expected Len: 0, Got: %d!", len(d.paths))
 	}
-
-	path, err := destiny.Get()
+	_, err := d.Get()
 	if err == nil {
-		t.Errorf("Should have received error, but got path: %v, err: %s", path, err)
+		t.Errorf("Should have received error.  There are no paths.")
 	}
 
-	destination := Destination{Symbol: "GOOG", Type: util.STOCK}
-	path = Path{Destination: destination, Timestamp: funcs.MS(funcs.Now())}
-	destiny.Put(path, true)
-	if len(destiny.paths) != 1 {
-		t.Errorf("Should be 1 path, but there are %d!", len(destiny.paths))
-	}
-
-	dp, _ := destiny.Get()
+	dest := Destination{Symbol: "GOOG", Type: util.STOCK}
+	path := Path{Destination: dest, Timestamp: funcs.MS(funcs.Now())}
+	d.paths = append(d.paths, path)
+	dp, _ := d.Get()
 	if dp != path {
 		t.Errorf("Expected: %+v, Got: %+v!", path, dp)
 	}
+}
 
-	now := funcs.MS(funcs.Now())
-	destination = Destination{Symbol: "AAPL", Type: util.STOCK}
-	path = Path{Destination: destination, Timestamp: now - destiny.maxage - 10}
-	destiny.Put(path, true)
-	if len(destiny.paths) != 2 {
-		t.Errorf("Should be 2 paths, but there are %d!", len(destiny.paths))
+func Test_Destiny_Put(t *testing.T) {
+	d := New(1 * 24 * 60 * 60 * 1000)
+
+	dest := Destination{Symbol: "GOOG", Type: util.STOCK}
+	path := Path{Destination: dest, Timestamp: funcs.MS(funcs.Now())}
+	d.Put(path, true)
+	if len(d.paths) != 1 {
+		t.Errorf("Expected Len: 1, Got: %d!", len(d.paths))
+	}
+	if d.paths[0] != path {
+		t.Errorf("Expected: %+v, Got: %+v!", path, d.paths[0])
 	}
 
-	destiny.Decay()
-	if len(destiny.paths) != 1 {
-		t.Errorf("Should be 1 path now, but there are %d!", len(destiny.paths))
+	dest = Destination{Symbol: "AAPL", Type: util.STOCK}
+	path = Path{Destination: dest, Timestamp: funcs.MS(funcs.Now())}
+	d.Put(path, true)
+	if len(d.paths) != 2 {
+		t.Errorf("Expected Len: 2, Got: %d!", len(d.paths))
+	}
+	if d.paths[1] != path {
+		t.Errorf("Expected: %+v, Got: %+v!", path, d.paths[1])
 	}
 
 	// Verify cannot add empty path.
-	length := len(destiny.paths)
-	destiny.Put(Path{}, true)
-	if len(destiny.paths) != length {
+	length := len(d.paths)
+	d.Put(Path{}, true)
+	if len(d.paths) != length {
 		t.Errorf("Empty Destination should not have been added!")
+	}
+}
+
+func Test_Destiny_Decay(t *testing.T) {
+	d := New(1 * 24 * 60 * 60 * 1000)
+
+	now := funcs.MS(funcs.Now())
+	dest := Destination{Symbol: "AAPL", Type: util.STOCK}
+	path := Path{Destination: dest, Timestamp: now - d.maxage - 10}
+	d.paths = append(d.paths, path)
+
+	// Same as with money.ReAllot() testing, this is really just the wrapper.
+	// We are testing the underlying decay() func.
+	d.Decay()
+	if len(d.paths) != 0 {
+		t.Errorf("Expected Len: 0, Got: %d!", len(d.paths))
+	}
+}
+
+func Test_Destiny_New(t *testing.T) {
+	d := New(1 * 24 * 60 * 60 * 1000)
+
+	if len(d.paths) != 0 {
+		t.Errorf("Expected Len: 0, Got: %d!", len(d.paths))
 	}
 }
