@@ -7,23 +7,58 @@ import (
 	"testing"
 )
 
-func Test_Trader(t *testing.T) {
-	trdr := New(10)
+func Test_Trader_New(t *testing.T) {
+	td := New(10)
+	if td == nil {
+		t.Errorf("Trader New() call failed!")
+	}
+}
 
-	po := ProtoOrder{Allotment: money.Allotment{Amount: 1000 * 100}, Path: destiny.Path{}}
-	po.Path.Destination.Symbol = "GOOG May 2014 1234 Put"
+func Test_Trader_constructOrder_Option(t *testing.T) {
+	td := New(10)
+
+	minCommission := td.commission[util.OPTION]["base"] + td.commission[util.OPTION]["unit"]
+
+	po := ProtoOrder{Allotment: money.Allotment{}, Path: destiny.Path{}}
 	po.Path.Destination.Type = util.OPTION
-	po.Path.LimitOpen = 990 // $9.90 option.
+	po.Path.Destination.Symbol = "GOOG MAY 2014 1234 PUT"
 
-	order, err := trdr.constructOrder(po)
-	if err == nil {
-		t.Errorf("Should not be able to fill this order: %+v", order)
-	}
+	po.Path.LimitOpen = 1000
+	po.Allotment.Amount = po.Path.LimitOpen*td.multiplier[util.OPTION] + minCommission
 
-	po.Path.LimitOpen = 989 // $9.89 option.
-
-	order, err = trdr.constructOrder(po)
+	o, err := td.constructOrder(po)
 	if err != nil {
-		t.Errorf("Should be able to fill this order: %+v", order)
+		t.Errorf("Should be able to fill this order: %+v, Allotment: %d", o, po.Allotment.Amount)
 	}
+
+	po.Path.LimitOpen++
+	o, err = td.constructOrder(po)
+	if err == nil {
+		t.Errorf("Should not be able to fill this order: %+v", o)
+	}
+}
+
+func Test_Trader_constructOrder_Stock(t *testing.T) {
+	td := New(10)
+
+	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
+
+	po := ProtoOrder{Allotment: money.Allotment{}, Path: destiny.Path{}}
+	po.Path.Destination.Type = util.STOCK
+	po.Path.Destination.Symbol = "GOOG"
+
+	po.Path.LimitOpen = 1000
+	po.Allotment.Amount = po.Path.LimitOpen*td.multiplier[util.STOCK] + minCommission
+
+	o, err := td.constructOrder(po)
+	if err != nil {
+		t.Errorf("Should be able to fill this order: %+v", o)
+	}
+
+	po.Path.LimitOpen++
+	o, err = td.constructOrder(po)
+	if err == nil {
+		t.Errorf("Should not be able to fill this order: %+v", o)
+	}
+
 }
