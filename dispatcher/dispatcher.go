@@ -30,6 +30,9 @@ func New(inBuf int, dstny *destiny.Destiny) *Dispatcher {
 					d.out[s.Id] = make(map[string]chan interface{})
 				}
 				d.out[s.Id][s.Whoami] = s.Subscriber
+				if message.Reply != nil {
+					message.Reply <- true
+				}
 			case money.Allotment:
 				allotment, _ := message.Data.(money.Allotment)
 				path, err := d.destiny.Get()
@@ -59,8 +62,17 @@ func New(inBuf int, dstny *destiny.Destiny) *Dispatcher {
 	return d
 }
 
-func (d *Dispatcher) Subscribe(id string, whoami string, subscriber chan interface{}) {
+func (d *Dispatcher) Subscribe(id string, whoami string, subscriber chan interface{}, wait bool) {
 	// Send subscription to d.in for processing.
+	var r chan interface{}
 	s := structs.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
-	d.in <- structs.Message{Data: s}
+	m := structs.Message{Data: s}
+	if wait {
+		r = make(chan interface{})
+		m.Reply = r
+	}
+	d.in <- m
+	if wait {
+		<-r
+	}
 }

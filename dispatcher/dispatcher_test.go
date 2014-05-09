@@ -9,46 +9,83 @@ import (
 	"testing"
 )
 
-func Test_Dispatcher(t *testing.T) {
+func Test_Dispatcher_New(t *testing.T) {
 	dstny := destiny.New(1 * 24 * 60 * 60 * 1000)
-	dispatcher := New(1024, dstny)
+	d := New(1024, dstny)
+	if d == nil {
+		t.Errorf("Dispatcher New() call failed!")
+	}
+}
 
-	path := destiny.Path{LimitClose: 1, LimitOpen: 2, Timestamp: 3}
-	dstny.Put(path, true)
+func Test_Dispatcher_Subscribe(t *testing.T) {
+	dstny := destiny.New(1 * 24 * 60 * 60 * 1000)
+	d := New(1024, dstny)
 
-	traderChannel := make(chan interface{}, 10)
-	dispatcher.Subscribe("trade", "tester", traderChannel)
+	tc := make(chan interface{}, 10)
+	d.Subscribe("trade", "tester", tc, true)
+	_, exists := d.out["trade"]
+	if !exists {
+		t.Errorf("Dispatcher did not create 'trade' channel!")
+	}
+	_, exists = d.out["trade"]["tester"]
+	if !exists {
+		t.Errorf("Dispatcher did not create 'tester' subscription!")
+	}
 
-	allotment := money.Allotment{Amount: 100}
+	// Another Subscription.
+	d.Subscribe("trade", "tester2", tc, true)
+	_, exists = d.out["trade"]["tester2"]
+	if !exists {
+		t.Errorf("Dispatcher did not create 'tester2' subscription!")
+	}
+}
+
+func Test_Dispatcher_Allotment(t *testing.T) {
+	dstny := destiny.New(1 * 24 * 60 * 60 * 1000)
+	d := New(1024, dstny)
+
+	// Subscribe to 'trade' channel.
+	tc := make(chan interface{}, 10)
+	d.Subscribe("trade", "tester", tc, true)
+
+	// Add Path for Allotment.
+	p := destiny.Path{LimitClose: 1, LimitOpen: 2, Timestamp: 3}
+	dstny.Put(p, true)
+
+	a := money.Allotment{Amount: 100}
 	reply := make(chan interface{})
-	dispatcher.in <- structs.Message{Data: allotment, Reply: reply}
+	d.in <- structs.Message{Data: a, Reply: reply}
 
 	response := <-reply
 	if !response.(bool) {
 		t.Errorf("Should have received 'true'")
 	}
-
-	order := <-traderChannel
-	if (order != trader.ProtoOrder{Allotment: allotment, Path: path}) {
-		t.Errorf("Expected Order with allotment, path but got Order: %+v\n", order)
+	o := <-tc
+	if (o != trader.ProtoOrder{Allotment: a, Path: p}) {
+		t.Errorf("Expected ProtoOrder: %+v, Got: %+v\n", trader.ProtoOrder{Allotment: a, Path: p}, o)
 	}
 
-	// Test sending again.
-	dispatcher.in <- structs.Message{Data: allotment, Reply: reply}
+	// Wipe out destiny.Paths and verify Allotment gets returned.
+	d.destiny = destiny.New(1 * 24 * 60 * 60 * 1000)
+	d.in <- structs.Message{Data: a, Reply: reply}
 	response = <-reply
-	if !response.(bool) {
-		t.Errorf("Should have received 'true'")
+	if response != a {
+		t.Errorf("No Path. Expected Allotment: %+v, Got: %+v", a, response)
 	}
+}
 
-	// Decay paths. Now should receive allotment back in reply.
-	dstny.Decay()
-	_, err := dstny.Get()
-	if err == nil {
-		t.Errorf("Expected error since there should be no Paths to Get().")
-	}
-	dispatcher.in <- structs.Message{Data: allotment, Reply: reply}
-	response = <-reply
-	if response.(money.Allotment) != allotment {
-		t.Errorf("Should have received allotment back since there was no Path.")
+func Test_Dispatcher_Delta(t *testing.T) {
+	dstny := destiny.New(1 * 24 * 60 * 60 * 1000)
+	d := New(1024, dstny)
+
+	// Subscribe to 'delta' channel.
+	dc := make(chan interface{}, 10)
+	d.Subscribe("delta", "tester", dc, true)
+
+	delta := trader.Delta{}
+	d.in <- structs.Message{Data: delta}
+	ddelta := <-dc
+	if ddelta != delta {
+		t.Errorf("Expected delta: %+v, Got: %+v", delta, ddelta)
 	}
 }
