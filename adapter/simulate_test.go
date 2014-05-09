@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func Test_Adapter(t *testing.T) {
+func Test_Simulate_Adapter(t *testing.T) {
 	var a interfaces.Adapter
 	a = New("simulate", "simulation")
 	if a == nil {
@@ -15,7 +15,7 @@ func Test_Adapter(t *testing.T) {
 	}
 }
 
-func Test_New(t *testing.T) {
+func Test_Simulate_New(t *testing.T) {
 	s := New("simulate", "simulator")
 
 	if s.Token == TOKEN {
@@ -29,7 +29,7 @@ func Test_New(t *testing.T) {
 	}
 }
 
-func Test_Connect(t *testing.T) {
+func Test_Simulate_Connect(t *testing.T) {
 	s := &Simulate{}
 
 	token, _ := s.Connect("simulate", "simulation")
@@ -38,7 +38,7 @@ func Test_Connect(t *testing.T) {
 	}
 }
 
-func Test_Get(t *testing.T) {
+func Test_Simulate_Get(t *testing.T) {
 	s := New("simulate", "simulation")
 
 	_, err := s.Get("thang", "thing")
@@ -89,7 +89,7 @@ func Test_Get(t *testing.T) {
 	}
 }
 
-func Test_GetOrders(t *testing.T) {
+func Test_Simulate_GetOrders(t *testing.T) {
 	s := New("simulate", "simulation")
 
 	o, err := s.GetOrders("open")
@@ -111,7 +111,7 @@ func Test_GetOrders(t *testing.T) {
 
 }
 
-func Test_GetPositions(t *testing.T) {
+func Test_Simulate_GetPositions(t *testing.T) {
 	s := New("simulate", "simulation")
 
 	p, err := s.GetPositions()
@@ -123,7 +123,7 @@ func Test_GetPositions(t *testing.T) {
 	}
 }
 
-func Test_SubmitOrder(t *testing.T) {
+func Test_Simulate_SubmitOrder(t *testing.T) {
 	s := New("simulate", "simulation")
 	o := structs.Order{Symbol: "GOOG"}
 	orderkey1, err := s.SubmitOrder(o)
