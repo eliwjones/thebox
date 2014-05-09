@@ -1,8 +1,9 @@
 package money
 
 import (
-	"errors"
 	"github.com/eliwjones/thebox/util/structs"
+
+	"errors"
 )
 
 type Allotment struct {
@@ -52,14 +53,12 @@ func (m *Money) ReAllot() {
 	<-wait
 }
 
-// http://golang.org/doc/codewalk/sharemem/
-// For "idiom" on controlling access to shared map/slice.
-// Other: https://gist.github.com/deckarep/7685352
-
 func New(cash int) *Money {
 	m := &Money{}
+
 	m.Total = cash
-	m.Available = cash
+	m.Available = m.Total
+
 	m.Allotments = []Allotment{}
 	m.Deltas = []Delta{}
 	m.get = make(chan chan Allotment, 100)
@@ -85,6 +84,11 @@ func New(cash int) *Money {
 				if allotment != (Allotment{}) {
 					m.Allotments = append(m.Allotments, allotment)
 					m.Available += allotment.Amount
+					// Trivial to see that excess allotments come in means more Total.
+					// How to infer reduction of Total?  Or is that always had by external call.
+					if m.Available > m.Total {
+						m.Total = m.Available
+					}
 				}
 				if signal.Wait != nil {
 					signal.Wait <- true

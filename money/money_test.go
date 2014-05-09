@@ -4,44 +4,69 @@ import (
 	"testing"
 )
 
-func Test_Money(t *testing.T) {
-	cash := 1000000 * 100 // Million $ in cents.
-	money := New(cash)
-	money.ReAllot()
+func Test_Money_Get(t *testing.T) {
+	m := New(1000000 * 100)
+	count := len(m.Allotments)
 
-	total := len(money.Allotments)
-	allotment, err := money.Get()
-
+	a, err := m.Get()
 	if err != nil {
 		t.Errorf("Why is there an error if there are Allotments!")
 	}
-	if len(money.Allotments) != total-1 {
-		t.Errorf("Len of Allotments should be %d, but got: %d", total-1, len(money.Allotments))
+	if len(m.Allotments) != count-1 {
+		t.Errorf("Expected Len: %d, Got: %d", count-1, len(m.Allotments))
 	}
-
-	if money.Available != money.Total-allotment.Amount {
-		t.Errorf("Should be less Available than Total.  Available: %d", money.Available)
-	}
-
-	money.Put(allotment, true)
-
-	if money.Available != money.Total {
-		t.Errorf("Available money should equal Total money! Available: %d", money.Available)
+	if m.Available != m.Total-a.Amount {
+		t.Errorf("Expected Available: %d, Got: %d", m.Total-a.Amount, m.Available)
 	}
 
 	// Empty Allotments and test for err.
-	for len(money.Allotments) > 0 {
-		money.Get()
+	for len(m.Allotments) > 0 {
+		m.Get()
 	}
-	allotment, err = money.Get()
+	_, err = m.Get()
 	if err == nil {
 		t.Errorf("Should have received an error since no Allotments are left!")
 	}
+}
+
+func Test_Money_Put(t *testing.T) {
+	m := New(1000000 * 100)
+	count := len(m.Allotments)
+	total := m.Total
+
+	a := Allotment{Amount: 1000 * 100}
+	m.Put(a, true)
+
+	if len(m.Allotments) != count+1 {
+		t.Errorf("Expected Len: %d, Got: %d", count+1, len(m.Allotments))
+	}
+
+	if m.Total != total+a.Amount {
+		t.Errorf("Expected Total: %d, Got: %d", total+a.Amount, m.Total)
+	}
 
 	// Verify cannot add empty Allotment.
-	length := len(money.Allotments)
-	money.Put(Allotment{}, true)
-	if len(money.Allotments) != length {
+	count = len(m.Allotments)
+	m.Put(Allotment{}, true)
+	if len(m.Allotments) != count {
 		t.Errorf("Empty Allotment should not have been added!")
+	}
+
+}
+
+func Test_Money_ReAllot(t *testing.T) {
+	m := New(1000000 * 100)
+	count := len(m.Allotments)
+	m.Get()
+	m.Get()
+	if len(m.Allotments) != count-2 {
+		t.Errorf("Expected Len: %d, Got: %d", count-2, len(m.Allotments))
+	}
+
+	// Not sure if like this.. ReAllot() is really just a wrapper.
+	// This is "testing" the underlying reallot() func.
+	m.ReAllot()
+	if len(m.Allotments) != count {
+		t.Errorf("Expected Len: %d, Got: %d", count, len(m.Allotments))
 	}
 }
