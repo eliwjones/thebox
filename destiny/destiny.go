@@ -1,8 +1,11 @@
 package destiny
 
 import (
-	"errors"
 	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/funcs"
+	"github.com/eliwjones/thebox/util/structs"
+
+	"errors"
 	"math/rand"
 )
 
@@ -20,12 +23,12 @@ type Path struct {
 }
 
 type Destiny struct {
-	destinations []Destination    // Need those destinations.
-	paths        []Path           // Timestamped paths to destinations..
-	maxage       int64            // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
-	put          chan util.Signal // New Paths come down this channel.
-	decay        chan chan bool   // Process of decay has begun.
-	decaying     bool             // Currently decaying, so block put,get.
+	destinations []Destination       // Need those destinations.
+	paths        []Path              // Timestamped paths to destinations..
+	maxage       int64               // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
+	put          chan structs.Signal // New Paths come down this channel.
+	decay        chan chan bool      // Process of decay has begun.
+	decaying     bool                // Currently decaying, so block put,get.
 }
 
 func (d *Destiny) Get() (Path, error) {
@@ -44,7 +47,7 @@ func (d *Destiny) Put(path Path, block bool) {
 	if block {
 		wait = make(chan bool)
 	}
-	d.put <- util.Signal{Payload: path, Wait: wait}
+	d.put <- structs.Signal{Payload: path, Wait: wait}
 	if block {
 		<-wait
 	}
@@ -61,7 +64,7 @@ func New(maxage int64) *Destiny {
 	d := &Destiny{}
 	d.paths = []Path{}
 	d.maxage = maxage
-	d.put = make(chan util.Signal, 100)
+	d.put = make(chan structs.Signal, 100)
 	d.decay = make(chan chan bool)
 	d.decaying = false
 
@@ -92,7 +95,7 @@ func New(maxage int64) *Destiny {
 }
 
 func decay(paths []Path, maxage int64) []Path {
-	now := util.MS(util.Now())
+	now := funcs.MS(funcs.Now())
 	newpaths := []Path{}
 	for _, path := range paths {
 		if path.Timestamp < now-maxage {

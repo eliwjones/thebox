@@ -4,6 +4,7 @@ import (
 	"github.com/eliwjones/thebox/destiny"
 	"github.com/eliwjones/thebox/money"
 	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
 )
@@ -17,8 +18,8 @@ type Delta struct {
 }
 
 type Trader struct {
-	positions  []util.Position                        // Current outstanding positions.
-	in         chan util.Message                      // Generally, ProtoOrders coming in.
+	positions  []structs.Position                     // Current outstanding positions.
+	in         chan structs.Message                   // Generally, ProtoOrders coming in.
 	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
 	multiplier map[util.ContractType]int
 	commission map[util.ContractType]map[string]int // commission fees per type for base, unit.
@@ -26,8 +27,8 @@ type Trader struct {
 
 func New(inBuf int64) *Trader {
 	t := &Trader{}
-	t.positions = []util.Position{}
-	t.in = make(chan util.Message, inBuf)
+	t.positions = []structs.Position{}
+	t.in = make(chan structs.Message, inBuf)
 	t.out = make(map[string]map[string]chan interface{})
 
 	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
@@ -39,8 +40,8 @@ func New(inBuf int64) *Trader {
 	go func() {
 		for message := range t.in {
 			switch message.Data.(type) {
-			case util.Subscription:
-				s, _ := message.Data.(util.Subscription)
+			case structs.Subscription:
+				s, _ := message.Data.(structs.Subscription)
 				if t.out[s.Id] == nil {
 					t.out[s.Id] = make(map[string]chan interface{})
 				}
@@ -73,8 +74,8 @@ func New(inBuf int64) *Trader {
 	return t
 }
 
-func (t *Trader) constructOrder(po ProtoOrder) (util.Order, error) {
-	o := util.Order{Symbol: po.Path.Destination.Symbol, Type: po.Path.Destination.Type}
+func (t *Trader) constructOrder(po ProtoOrder) (structs.Order, error) {
+	o := structs.Order{Symbol: po.Path.Destination.Symbol, Type: po.Path.Destination.Type}
 	o.Volume = (po.Allotment.Amount - t.commission[o.Type]["base"]) / (po.Path.LimitOpen * t.multiplier[o.Type])
 	o.Limitprice = po.Path.LimitOpen
 	o.Maxcost = (o.Volume * o.Limitprice * t.multiplier[o.Type]) + (o.Volume * t.commission[o.Type]["unit"])
@@ -91,11 +92,11 @@ func (t *Trader) constructOrder(po ProtoOrder) (util.Order, error) {
 
 func (t *Trader) Subscribe(id string, whoami string, subscriber chan interface{}) {
 	// Mainly to subscribe to deltas.
-	s := util.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
-	t.in <- util.Message{Data: s}
+	s := structs.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
+	t.in <- structs.Message{Data: s}
 }
 
-func processOrder(o util.Order) (string, error) {
+func processOrder(o structs.Order) (string, error) {
 	// Ultimately, some thing that implements an interface will be used..
 	return "dummyorderID", nil
 }

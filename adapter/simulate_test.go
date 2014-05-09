@@ -1,10 +1,19 @@
 package simulate
 
 import (
-	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/interfaces"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"testing"
 )
+
+func Test_Adapter(t *testing.T) {
+	var a interfaces.Adapter
+	a = New("simulate", "simulation")
+	if a == nil {
+		t.Errorf("%+v", a)
+	}
+}
 
 func Test_New(t *testing.T) {
 	s := New("simulate", "simulator")
@@ -57,7 +66,7 @@ func Test_Get(t *testing.T) {
 	if err == nil {
 		t.Errorf("Should have received error for 'non-existent-key'! order: %+v", order)
 	}
-	s.Orders["existing-key"] = util.Order{}
+	s.Orders["existing-key"] = structs.Order{}
 	order, err = s.Get("order", "existing-key")
 	if err != nil {
 		t.Errorf("Got error but order should exist!")
@@ -70,7 +79,7 @@ func Test_Get(t *testing.T) {
 	if err == nil {
 		t.Errorf("Should have received error for 'non-existent-key'! position: %+v", position)
 	}
-	s.Positions["existing-key"] = util.Position{}
+	s.Positions["existing-key"] = structs.Position{}
 	position, err = s.Get("position", "existing-key")
 	if err != nil {
 		t.Errorf("Got error but position should exist!")
@@ -90,8 +99,8 @@ func Test_GetOrders(t *testing.T) {
 	if len(o) != 0 {
 		t.Errorf("I was not expecting any orders! orders: %+v", o)
 	}
-	s.SubmitOrder(util.Order{Symbol: "GOOG"})
-	s.SubmitOrder(util.Order{Symbol: "GOOG"})
+	s.SubmitOrder(structs.Order{Symbol: "GOOG"})
+	s.SubmitOrder(structs.Order{Symbol: "GOOG"})
 	o, err = s.GetOrders("open")
 	if err != nil {
 		t.Errorf("There was an error! err: %s", err)
@@ -116,7 +125,7 @@ func Test_GetPositions(t *testing.T) {
 
 func Test_SubmitOrder(t *testing.T) {
 	s := New("simulate", "simulation")
-	o := util.Order{Symbol: "GOOG"}
+	o := structs.Order{Symbol: "GOOG"}
 	orderkey1, err := s.SubmitOrder(o)
 	if err != nil {
 		t.Errorf("Expected this order submission to succeed! err: %s", err)
@@ -126,7 +135,7 @@ func Test_SubmitOrder(t *testing.T) {
 		t.Errorf("Expected: %+v, Got: %+v", o, gotOrder)
 	}
 
-	o = util.Order{Symbol: "AAPL"}
+	o = structs.Order{Symbol: "AAPL"}
 	orderkey2, err := s.SubmitOrder(o)
 	o1, _ := s.Get("order", orderkey1)
 	o2, _ := s.Get("order", orderkey2)

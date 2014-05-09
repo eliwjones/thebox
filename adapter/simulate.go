@@ -1,7 +1,7 @@
 package simulate
 
 import (
-	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
 	"fmt"
@@ -19,10 +19,10 @@ type Simulate struct {
 	Tables map[string]int // "position", "order", "cash", "value" ... "margin"?
 
 	// Mocks.
-	Positions map[string]util.Position // most likely just util.Positions.
-	Orders    map[string]util.Order    // most likely just util.Orders.
-	Cash      int                      // cash available.
-	Value     int                      // total account value (cash + position value).
+	Positions map[string]structs.Position // most likely just util.Positions.
+	Orders    map[string]structs.Order    // most likely just util.Orders.
+	Cash      int                         // cash available.
+	Value     int                         // total account value (cash + position value).
 }
 
 func New(id string, auth string) *Simulate {
@@ -33,8 +33,8 @@ func New(id string, auth string) *Simulate {
 	// Mocked data.  Not about to make actual http api to simulate external resource.
 	s.Cash = 1000000 * 100 // $1 million in cents.
 	s.Value = s.Cash
-	s.Positions = map[string]util.Position{}
-	s.Orders = map[string]util.Order{}
+	s.Positions = map[string]structs.Position{}
+	s.Orders = map[string]structs.Order{}
 
 	return s
 }
@@ -75,7 +75,7 @@ func (s *Simulate) Get(table string, key string) (interface{}, error) {
 	return nil, fmt.Errorf("No data found for key: %s!", key)
 }
 
-func (s *Simulate) GetOrders(filter string) (map[string]util.Order, error) {
+func (s *Simulate) GetOrders(filter string) (map[string]structs.Order, error) {
 	if s.Token != TOKEN {
 		return nil, errors.New("Bad Auth Token!")
 	}
@@ -83,7 +83,7 @@ func (s *Simulate) GetOrders(filter string) (map[string]util.Order, error) {
 	return s.Orders, nil
 }
 
-func (s *Simulate) GetPositions() (map[string]util.Position, error) {
+func (s *Simulate) GetPositions() (map[string]structs.Position, error) {
 	if s.Token != TOKEN {
 		return nil, errors.New("Bad Auth Token!")
 	}
@@ -91,7 +91,7 @@ func (s *Simulate) GetPositions() (map[string]util.Position, error) {
 	return s.Positions, nil
 }
 
-func (s *Simulate) SubmitOrder(order util.Order) (string, error) {
+func (s *Simulate) SubmitOrder(order structs.Order) (string, error) {
 	if s.Token != TOKEN {
 		return "", errors.New("Bad Auth Token!")
 	}

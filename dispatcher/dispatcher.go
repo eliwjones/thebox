@@ -4,18 +4,18 @@ import (
 	"github.com/eliwjones/thebox/destiny"
 	"github.com/eliwjones/thebox/money"
 	"github.com/eliwjones/thebox/trader"
-	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/structs"
 )
 
 type Dispatcher struct {
-	in      chan util.Message                      // Something comes in.
+	in      chan structs.Message                   // Something comes in.
 	out     map[string]map[string]chan interface{} // Send things out to whoever wants "it".
 	destiny *destiny.Destiny                       // Place to get my paths from.
 }
 
 func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 	d := &Dispatcher{}
-	d.in = make(chan util.Message, inBuf)
+	d.in = make(chan structs.Message, inBuf)
 	d.out = make(map[string]map[string]chan interface{})
 	d.destiny = dstny
 
@@ -23,9 +23,9 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 	go func() {
 		for message := range d.in {
 			switch message.Data.(type) {
-			case util.Subscription:
+			case structs.Subscription:
 				// Subscriptions are fairly sparse, so no need for separate channel.
-				s, _ := message.Data.(util.Subscription)
+				s, _ := message.Data.(structs.Subscription)
 				if d.out[s.Id] == nil {
 					d.out[s.Id] = make(map[string]chan interface{})
 				}
@@ -61,6 +61,6 @@ func New(inBuf int64, dstny *destiny.Destiny) *Dispatcher {
 
 func (d *Dispatcher) Subscribe(id string, whoami string, subscriber chan interface{}) {
 	// Send subscription to d.in for processing.
-	s := util.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
-	d.in <- util.Message{Data: s}
+	s := structs.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
+	d.in <- structs.Message{Data: s}
 }

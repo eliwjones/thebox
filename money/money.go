@@ -2,7 +2,7 @@ package money
 
 import (
 	"errors"
-	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/structs"
 )
 
 type Allotment struct {
@@ -20,7 +20,7 @@ type Money struct {
 	Allotments []Allotment         // Currently available Allotments.
 	Deltas     []Delta             // Current bits of Delta.
 	get        chan chan Allotment // Request allotment.
-	put        chan util.Signal    // Put allotment.
+	put        chan structs.Signal // Put allotment.
 	reallot    chan chan bool      // Re-balance Allotments.
 }
 
@@ -40,7 +40,7 @@ func (m *Money) Put(allotment Allotment, block bool) {
 	if block {
 		wait = make(chan bool)
 	}
-	m.put <- util.Signal{Payload: allotment, Wait: wait}
+	m.put <- structs.Signal{Payload: allotment, Wait: wait}
 	if block {
 		<-wait
 	}
@@ -63,7 +63,7 @@ func New(cash int) *Money {
 	m.Allotments = []Allotment{}
 	m.Deltas = []Delta{}
 	m.get = make(chan chan Allotment, 100)
-	m.put = make(chan util.Signal, 100)
+	m.put = make(chan structs.Signal, 100)
 	m.reallot = make(chan chan bool, 10)
 
 	// Process Get,Put, ReAllot calls.

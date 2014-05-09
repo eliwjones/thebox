@@ -4,7 +4,7 @@ import (
 	"github.com/eliwjones/thebox/destiny"
 	"github.com/eliwjones/thebox/money"
 	"github.com/eliwjones/thebox/trader"
-	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"testing"
 )
@@ -21,7 +21,7 @@ func Test_Dispatcher(t *testing.T) {
 
 	allotment := money.Allotment{Amount: 100}
 	reply := make(chan interface{})
-	dispatcher.in <- util.Message{Data: allotment, Reply: reply}
+	dispatcher.in <- structs.Message{Data: allotment, Reply: reply}
 
 	response := <-reply
 	if !response.(bool) {
@@ -34,7 +34,7 @@ func Test_Dispatcher(t *testing.T) {
 	}
 
 	// Test sending again.
-	dispatcher.in <- util.Message{Data: allotment, Reply: reply}
+	dispatcher.in <- structs.Message{Data: allotment, Reply: reply}
 	response = <-reply
 	if !response.(bool) {
 		t.Errorf("Should have received 'true'")
@@ -46,7 +46,7 @@ func Test_Dispatcher(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected error since there should be no Paths to Get().")
 	}
-	dispatcher.in <- util.Message{Data: allotment, Reply: reply}
+	dispatcher.in <- structs.Message{Data: allotment, Reply: reply}
 	response = <-reply
 	if response.(money.Allotment) != allotment {
 		t.Errorf("Should have received allotment back since there was no Path.")

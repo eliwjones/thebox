@@ -2,6 +2,7 @@ package destiny
 
 import (
 	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/funcs"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func Test_Destiny(t *testing.T) {
 	}
 
 	destination := Destination{Symbol: "GOOG", Type: util.STOCK}
-	path = Path{Destination: destination, Timestamp: util.MS(util.Now())}
+	path = Path{Destination: destination, Timestamp: funcs.MS(funcs.Now())}
 	destiny.Put(path, true)
 	if len(destiny.paths) != 1 {
 		t.Errorf("Should be 1 path, but there are %d!", len(destiny.paths))
@@ -30,7 +31,7 @@ func Test_Destiny(t *testing.T) {
 		t.Errorf("Expected: %+v, Got: %+v!", path, dp)
 	}
 
-	now := util.MS(util.Now())
+	now := funcs.MS(funcs.Now())
 	destination = Destination{Symbol: "AAPL", Type: util.STOCK}
 	path = Path{Destination: destination, Timestamp: now - destiny.maxage - 10}
 	destiny.Put(path, true)
