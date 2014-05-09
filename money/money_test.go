@@ -4,6 +4,14 @@ import (
 	"testing"
 )
 
+func Test_Money_New(t *testing.T) {
+	cash := 1000000 * 100
+	m := New(cash)
+	if m.Total != cash || m.Available != cash {
+		t.Errorf("Expected Total: %d, Available: %b to Equal: %d!", m.Total, m.Available, cash)
+	}
+}
+
 func Test_Money_Get(t *testing.T) {
 	m := New(1000000 * 100)
 	count := len(m.Allotments)
