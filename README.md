@@ -1,3 +1,8 @@
+Vague Schematic
+===============
+
+![Vague Schematic](https://docs.google.com/drawings/d/101-7Rp9DE7aJXBeks2XlcRYwwUHiWA6PHXaim5Iz6iQ/pub?w=1356&h=335)
+
 Quick Start
 ===========
 
