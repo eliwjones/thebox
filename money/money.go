@@ -4,6 +4,7 @@ import (
 	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
+	"math/rand"
 )
 
 type Allotment struct {
@@ -48,6 +49,23 @@ func (m *Money) ReAllot() {
 	wait := make(chan bool)
 	m.reallot <- wait
 	<-wait
+}
+
+func (m *Money) getRandomAllotment() (a Allotment, err error) {
+	// Insane? Recovering from panic of non-existent index.
+	// Golang Try/Catch?
+	defer func() {
+		r := recover()
+		if r != nil {
+			amt := m.Total / 100
+			a = Allotment{Amount: amt}
+			if amt <= 0 {
+				err = errors.New("Not enough Total Value to connstruct allotment.")
+			}
+		}
+	}()
+	a = m.Allotments[rand.Intn(len(m.Allotments))]
+	return a, err
 }
 
 func New(cash int) *Money {
@@ -108,6 +126,30 @@ func New(cash int) *Money {
 			m.deltaSum += delta.Amount
 
 			// Determine if can construct Allotment and send on.
+			a, err := m.getRandomAllotment()
+			for m.deltaSum >= a.Amount && err == nil {
+				sum := 0
+				var d structs.Delta
+				for sum < a.Amount {
+					// Pop Deltas until exceed desired amount.
+					d, m.Deltas = m.Deltas[len(m.Deltas)-1], m.Deltas[:len(m.Deltas)-1]
+					sum += d.Amount
+				}
+				m.Put(a, false)
+				m.deltaSum -= sum
+				remainder := sum - a.Amount
+				if remainder > 0 {
+					// Send Delta back.
+					d.Amount = remainder
+					d.Path = structs.Path{}
+					d.Percent = 0
+
+					// Insane? Spawn go func() to avoid deadlock.
+					go func() {
+						m.deltaIn <- d
+					}()
+				}
+			}
 		}
 	}()
 
@@ -122,6 +164,9 @@ func reallot(cash int) []Allotment {
 	allotments := []Allotment{}
 	allotment := Allotment{}
 	allotment.Amount = cash / 100
+	if allotment.Amount <= 0 {
+		return allotments
+	}
 	for i := 0; i < 100; i++ {
 		allotments = append(allotments, allotment)
 	}
