@@ -4,6 +4,18 @@ import (
 	"github.com/eliwjones/thebox/util"
 )
 
+type Delta struct {
+	Amount  int
+	Percent float32
+	Path    Path
+}
+
+type Destination struct {
+	Underlying string            // "GOOG",  "SPX",  // Underlying?
+	Symbol     string            // function of Underlying? f(d.Underlying, 1, d.Type)
+	Type       util.ContractType // util.OPTION, util.STOCK
+}
+
 type Order struct {
 	Id         string            // Filled in if linked to Position.
 	Symbol     string            // Whatever have to submit to api.
@@ -11,6 +23,13 @@ type Order struct {
 	Limitprice int               // Price in cents to pay?  (And convert with api adapter?)
 	Type       util.ContractType // STOCK, OPTION
 	Maxcost    int               // Expected maximum expenditure for order.
+}
+
+type Path struct {
+	Destination Destination
+	LimitOpen   int // populated by function of current (Bid, Ask)?  Too specific??
+	LimitClose  int // populated by function of LimitOpen?
+	Timestamp   int64
 }
 
 type Position struct {

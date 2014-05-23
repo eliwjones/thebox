@@ -1,7 +1,6 @@
 package trader
 
 import (
-	"github.com/eliwjones/thebox/destiny"
 	"github.com/eliwjones/thebox/money"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
@@ -11,10 +10,7 @@ import (
 
 type ProtoOrder struct {
 	Allotment money.Allotment // Money alloted for order.
-	Path      destiny.Path    // How it wishes to "go out" and "return".
-}
-
-type Delta struct {
+	Path      structs.Path    // How it wishes to "go out" and "return".
 }
 
 type Trader struct {
@@ -62,8 +58,8 @@ func New(inBuf int) *Trader {
 				if message.Reply != nil {
 					message.Reply <- true
 				}
-			case Delta:
-				d, _ := message.Data.(Delta)
+			case structs.Delta:
+				d, _ := message.Data.(structs.Delta)
 				for _, subscriber := range t.out["delta"] {
 					subscriber <- d
 				}

@@ -10,16 +10,13 @@ type Allotment struct {
 	Amount int // Some parcel of total value in cents.
 }
 
-type Delta struct {
-	Amount  int     // Return in cents.
-	Percent float32 // Delta.Amount/(Position.Price*Position.Volume)
-}
-
 type Money struct {
 	Total      int                 // Total money in cents.
 	Available  int                 // Available money in cents.
 	Allotments []Allotment         // Currently available Allotments.
-	Deltas     []Delta             // Current bits of Delta.
+	Deltas     []structs.Delta     // Current bits of Delta.
+	deltaSum   int                 // Sum of Delta amounts.
+	deltaIn    chan structs.Delta  // Deltas rolling in.
 	get        chan chan Allotment // Request allotment.
 	put        chan structs.Signal // Put allotment.
 	reallot    chan chan bool      // Re-balance Allotments.
@@ -60,10 +57,14 @@ func New(cash int) *Money {
 	m.Available = m.Total
 
 	m.Allotments = []Allotment{}
-	m.Deltas = []Delta{}
+	m.Deltas = []structs.Delta{}
+	m.deltaSum = 0
+	m.deltaIn = make(chan structs.Delta, 100)
 	m.get = make(chan chan Allotment, 100)
 	m.put = make(chan structs.Signal, 100)
 	m.reallot = make(chan chan bool, 10)
+
+	// Send any mod 100 remainder to Deltas.
 
 	// Process Get,Put, ReAllot calls.
 	go func() {
@@ -97,6 +98,16 @@ func New(cash int) *Money {
 				m.Allotments = reallot(m.Available)
 				wait <- true
 			}
+		}
+	}()
+
+	// Process incoming Deltas
+	go func() {
+		for delta := range m.deltaIn {
+			m.Deltas = append(m.Deltas, delta)
+			m.deltaSum += delta.Amount
+
+			// Determine if can construct Allotment and send on.
 		}
 	}()
 

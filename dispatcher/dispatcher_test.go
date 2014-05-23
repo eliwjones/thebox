@@ -49,7 +49,7 @@ func Test_Dispatcher_Allotment(t *testing.T) {
 	d.Subscribe("trade", "tester", tc, true)
 
 	// Add Path for Allotment.
-	p := destiny.Path{LimitClose: 1, LimitOpen: 2, Timestamp: 3}
+	p := structs.Path{LimitClose: 1, LimitOpen: 2, Timestamp: 3}
 	dstny.Put(p, true)
 
 	a := money.Allotment{Amount: 100}
@@ -82,7 +82,7 @@ func Test_Dispatcher_Delta(t *testing.T) {
 	dc := make(chan interface{}, 10)
 	d.Subscribe("delta", "tester", dc, true)
 
-	delta := trader.Delta{}
+	delta := structs.Delta{}
 	d.in <- structs.Message{Data: delta}
 	ddelta := <-dc
 	if ddelta != delta {

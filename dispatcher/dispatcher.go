@@ -49,9 +49,9 @@ func New(inBuf int, dstny *destiny.Destiny) *Dispatcher {
 				if message.Reply != nil {
 					message.Reply <- true
 				}
-			case trader.Delta:
+			case structs.Delta:
 				// Handle Delta.
-				delta, _ := message.Data.(trader.Delta)
+				delta, _ := message.Data.(structs.Delta)
 				for _, subscriber := range d.out["delta"] {
 					subscriber <- delta
 				}

@@ -1,7 +1,6 @@
 package destiny
 
 import (
-	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -9,39 +8,26 @@ import (
 	"math/rand"
 )
 
-type Destination struct {
-	Underlying string            // "GOOG",  "SPX",  // Underlying?
-	Symbol     string            // function of Underlying? f(d.Underlying, 1, d.Type)
-	Type       util.ContractType // util.OPTION, util.STOCK
-}
-
-type Path struct {
-	Destination Destination
-	LimitOpen   int // populated by function of current (Bid, Ask)?  Too specific??
-	LimitClose  int // populated by function of LimitOpen?
-	Timestamp   int64
-}
-
 type Destiny struct {
-	destinations []Destination       // Need those destinations.
-	paths        []Path              // Timestamped paths to destinations..
-	maxage       int64               // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
-	put          chan structs.Signal // New Paths come down this channel.
-	decay        chan chan bool      // Process of decay has begun.
-	decaying     bool                // Currently decaying, so block put,get.
+	destinations []structs.Destination // Need those destinations.
+	paths        []structs.Path        // Timestamped paths to destinations..
+	maxage       int64                 // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
+	put          chan structs.Signal   // New Paths come down this channel.
+	decay        chan chan bool        // Process of decay has begun.
+	decaying     bool                  // Currently decaying, so block put,get.
 }
 
-func (d *Destiny) Get() (Path, error) {
+func (d *Destiny) Get() (structs.Path, error) {
 	// Get random Path.  No locking since don't care? Maybe just a lock on len()?
 	// May want to block while decaying?  Or, should just structure Decay to only happen after any possible Get()-ing?
 	if len(d.paths) == 0 {
-		return Path{}, errors.New("No Paths to Destinations.")
+		return structs.Path{}, errors.New("No Paths to Destinations.")
 	}
 	path := d.paths[rand.Intn(len(d.paths))]
 	return path, nil
 }
 
-func (d *Destiny) Put(path Path, block bool) {
+func (d *Destiny) Put(path structs.Path, block bool) {
 	// Put new path.
 	var wait chan bool
 	if block {
@@ -62,7 +48,7 @@ func (d *Destiny) Decay() {
 
 func New(maxage int64) *Destiny {
 	d := &Destiny{}
-	d.paths = []Path{}
+	d.paths = []structs.Path{}
 	d.maxage = maxage
 	d.put = make(chan structs.Signal, 100)
 	d.decay = make(chan chan bool)
@@ -74,8 +60,8 @@ func New(maxage int64) *Destiny {
 			select {
 			case signal := <-d.put:
 				// Push Path.
-				path := signal.Payload.(Path)
-				if path != (Path{}) {
+				path := signal.Payload.(structs.Path)
+				if path != (structs.Path{}) {
 					d.paths = append(d.paths, path)
 				}
 				if signal.Wait != nil {
@@ -94,9 +80,9 @@ func New(maxage int64) *Destiny {
 	return d
 }
 
-func decay(paths []Path, maxage int64) []Path {
+func decay(paths []structs.Path, maxage int64) []structs.Path {
 	now := funcs.MS(funcs.Now())
-	newpaths := []Path{}
+	newpaths := []structs.Path{}
 	for _, path := range paths {
 		if path.Timestamp < now-maxage {
 			continue
