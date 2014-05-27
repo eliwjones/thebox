@@ -1,30 +1,26 @@
 package dispatcher
 
 import (
-	"github.com/eliwjones/thebox/destiny"
-	"github.com/eliwjones/thebox/money"
-	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util/structs"
 )
 
 type Dispatcher struct {
-	in      chan structs.Message                   // Something comes in.
-	out     map[string]map[string]chan interface{} // Send things out to whoever wants "it".
-	destiny *destiny.Destiny                       // Place to get my paths from.
+	in  chan structs.Message                   // Something comes in.
+	out map[string]map[string]chan interface{} // Send things out to whoever wants "it".
 }
 
-func New(inBuf int, dstny *destiny.Destiny) *Dispatcher {
+func New(inBuf int) *Dispatcher {
 	d := &Dispatcher{}
 	d.in = make(chan structs.Message, inBuf)
 	d.out = make(map[string]map[string]chan interface{})
-	d.destiny = dstny
 
 	// Run go func() to process the old in and out.
+	// switch/case maybe outdated since only accept Subscribes.
 	go func() {
 		for message := range d.in {
 			switch message.Data.(type) {
 			case structs.Subscription:
-				// Subscriptions are fairly sparse, so no need for separate channel.
+				// Not really sure if need "wait" for subscription.
 				s, _ := message.Data.(structs.Subscription)
 				if d.out[s.Id] == nil {
 					d.out[s.Id] = make(map[string]chan interface{})
@@ -32,28 +28,6 @@ func New(inBuf int, dstny *destiny.Destiny) *Dispatcher {
 				d.out[s.Id][s.Whoami] = s.Subscriber
 				if message.Reply != nil {
 					message.Reply <- true
-				}
-			case money.Allotment:
-				allotment, _ := message.Data.(money.Allotment)
-				path, err := d.destiny.Get()
-				if err != nil {
-					// Could not get path so return allotment.
-					if message.Reply != nil {
-						message.Reply <- allotment
-					}
-					continue
-				}
-				for _, subscriber := range d.out["trade"] {
-					subscriber <- trader.ProtoOrder{Allotment: allotment, Path: path}
-				}
-				if message.Reply != nil {
-					message.Reply <- true
-				}
-			case structs.Delta:
-				// Handle Delta.
-				delta, _ := message.Data.(structs.Delta)
-				for _, subscriber := range d.out["delta"] {
-					subscriber <- delta
 				}
 			}
 		}
@@ -74,5 +48,12 @@ func (d *Dispatcher) Subscribe(id string, whoami string, subscriber chan interfa
 	d.in <- m
 	if wait {
 		<-r
+	}
+}
+
+func (d *Dispatcher) Send(message interface{}, id string) {
+	// Not sure want to worry about concurrent access here?
+	for _, subscriber := range d.out[id] {
+		subscriber <- message
 	}
 }
