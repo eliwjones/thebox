@@ -137,3 +137,17 @@ func Test_Money_Processor_Delta(t *testing.T) {
 		t.Errorf("Expected: %d, Got: %d!", 200, m.deltaSum)
 	}
 }
+
+func Test_Money_Dispatcher(t *testing.T) {
+	m := New(1000000000)
+
+	ac := make(chan interface{}, 10)
+	m.dispatcher.Subscribe("allotment", "tester", ac, true)
+	a, _ := m.Get()
+	m.dispatcher.Send(a, "allotment")
+	gota := <-ac
+
+	if a != gota {
+		t.Errorf("Expected: %+v, Got: %+v", a, gota)
+	}
+}

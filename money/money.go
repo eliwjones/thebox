@@ -1,6 +1,7 @@
 package money
 
 import (
+	"github.com/eliwjones/thebox/dispatcher"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
@@ -12,14 +13,15 @@ type Allotment struct {
 }
 
 type Money struct {
-	Total      int                 // Total money in cents.
-	Available  int                 // Available money in cents.
-	Allotments []Allotment         // Currently available Allotments.
-	deltaSum   int                 // Sum of Delta amounts.
-	deltaIn    chan structs.Delta  // Deltas rolling in.
-	get        chan chan Allotment // Request allotment.
-	put        chan structs.Signal // Put allotment.
-	reallot    chan chan bool      // Re-balance Allotments.
+	Total      int                    // Total money in cents.
+	Available  int                    // Available money in cents.
+	Allotments []Allotment            // Currently available Allotments.
+	deltaSum   int                    // Sum of Delta amounts.
+	deltaIn    chan structs.Delta     // Deltas rolling in.
+	get        chan chan Allotment    // Request allotment.
+	put        chan structs.Signal    // Put allotment.
+	reallot    chan chan bool         // Re-balance Allotments.
+	dispatcher *dispatcher.Dispatcher // My megaphone.
 }
 
 func (m *Money) Get() (Allotment, error) {
@@ -79,6 +81,8 @@ func New(cash int) *Money {
 	m.get = make(chan chan Allotment, 100)
 	m.put = make(chan structs.Signal, 100)
 	m.reallot = make(chan chan bool, 10)
+
+	m.dispatcher = dispatcher.New(1000)
 
 	// Send any mod 100 remainder to Deltas.
 
