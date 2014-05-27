@@ -15,7 +15,6 @@ type Money struct {
 	Total      int                 // Total money in cents.
 	Available  int                 // Available money in cents.
 	Allotments []Allotment         // Currently available Allotments.
-	Deltas     []structs.Delta     // Current bits of Delta.
 	deltaSum   int                 // Sum of Delta amounts.
 	deltaIn    chan structs.Delta  // Deltas rolling in.
 	get        chan chan Allotment // Request allotment.
@@ -75,7 +74,6 @@ func New(cash int) *Money {
 	m.Available = m.Total
 
 	m.Allotments = []Allotment{}
-	m.Deltas = []structs.Delta{}
 	m.deltaSum = 0
 	m.deltaIn = make(chan structs.Delta, 100)
 	m.get = make(chan chan Allotment, 100)
@@ -122,33 +120,13 @@ func New(cash int) *Money {
 	// Process incoming Deltas
 	go func() {
 		for delta := range m.deltaIn {
-			m.Deltas = append(m.Deltas, delta)
 			m.deltaSum += delta.Amount
 
 			// Determine if can construct Allotment and send on.
 			a, err := m.getRandomAllotment()
 			for m.deltaSum >= a.Amount && err == nil {
-				sum := 0
-				var d structs.Delta
-				for sum < a.Amount {
-					// Pop Deltas until exceed desired amount.
-					d, m.Deltas = m.Deltas[len(m.Deltas)-1], m.Deltas[:len(m.Deltas)-1]
-					sum += d.Amount
-				}
+				m.deltaSum -= a.Amount
 				m.Put(a, false)
-				m.deltaSum -= sum
-				remainder := sum - a.Amount
-				if remainder > 0 {
-					// Send Delta back.
-					d.Amount = remainder
-					d.Path = structs.Path{}
-					d.Percent = 0
-
-					// Insane? Spawn go func() to avoid deadlock.
-					go func() {
-						m.deltaIn <- d
-					}()
-				}
 			}
 		}
 	}()

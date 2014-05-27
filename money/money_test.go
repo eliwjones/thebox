@@ -136,7 +136,4 @@ func Test_Money_Processor_Delta(t *testing.T) {
 	if m.deltaSum != 200 {
 		t.Errorf("Expected: %d, Got: %d!", 200, m.deltaSum)
 	}
-	if len(m.Deltas) != 1 {
-		t.Errorf("Expected: %d, Got: %d! Deltas: %+v", 1, len(m.Deltas), m.Deltas)
-	}
 }
