@@ -8,34 +8,30 @@ import (
 	"math/rand"
 )
 
-type Allotment struct {
-	Amount int // Some parcel of total value in cents.
-}
-
 type Money struct {
-	Total      int                    // Total money in cents.
-	Available  int                    // Available money in cents.
-	Allotments []Allotment            // Currently available Allotments.
-	deltaSum   int                    // Sum of Delta amounts.
-	deltaIn    chan structs.Delta     // Deltas rolling in.
-	get        chan chan Allotment    // Request allotment.
-	put        chan structs.Signal    // Put allotment.
-	reallot    chan chan bool         // Re-balance Allotments.
-	dispatcher *dispatcher.Dispatcher // My megaphone.
+	Total      int                         // Total money in cents.
+	Available  int                         // Available money in cents.
+	Allotments []structs.Allotment         // Currently available Allotments.
+	deltaSum   int                         // Sum of Delta amounts.
+	deltaIn    chan structs.Delta          // Deltas rolling in.
+	get        chan chan structs.Allotment // Request allotment.
+	put        chan structs.Signal         // Put allotment.
+	reallot    chan chan bool              // Re-balance Allotments.
+	dispatcher *dispatcher.Dispatcher      // My megaphone.
 }
 
-func (m *Money) Get() (Allotment, error) {
+func (m *Money) Get() (structs.Allotment, error) {
 	var err error
-	reply := make(chan Allotment)
+	reply := make(chan structs.Allotment)
 	m.get <- reply
 	allotment := <-reply
-	if allotment == (Allotment{}) {
+	if allotment == (structs.Allotment{}) {
 		err = errors.New("No Allotments")
 	}
 	return allotment, err
 }
 
-func (m *Money) Put(allotment Allotment, block bool) {
+func (m *Money) Put(allotment structs.Allotment, block bool) {
 	var wait chan bool
 	if block {
 		wait = make(chan bool)
@@ -52,14 +48,14 @@ func (m *Money) ReAllot() {
 	<-wait
 }
 
-func (m *Money) getRandomAllotment() (a Allotment, err error) {
+func (m *Money) getRandomAllotment() (a structs.Allotment, err error) {
 	// Insane? Recovering from panic of non-existent index.
 	// Golang Try/Catch?
 	defer func() {
 		r := recover()
 		if r != nil {
 			amt := m.Total / 100
-			a = Allotment{Amount: amt}
+			a = structs.Allotment{Amount: amt}
 			if amt <= 0 {
 				err = errors.New("Not enough Total Value to connstruct allotment.")
 			}
@@ -75,10 +71,10 @@ func New(cash int) *Money {
 	m.Total = cash
 	m.Available = m.Total
 
-	m.Allotments = []Allotment{}
+	m.Allotments = []structs.Allotment{}
 	m.deltaSum = 0
 	m.deltaIn = make(chan structs.Delta, 100)
-	m.get = make(chan chan Allotment, 100)
+	m.get = make(chan chan structs.Allotment, 100)
 	m.put = make(chan structs.Signal, 100)
 	m.reallot = make(chan chan bool, 10)
 
@@ -92,7 +88,7 @@ func New(cash int) *Money {
 			select {
 			case c := <-m.get:
 				// Pop Allotment from m.Allotments and send it down c.
-				allotment := Allotment{}
+				allotment := structs.Allotment{}
 				if len(m.Allotments) > 0 {
 					allotment, m.Allotments = m.Allotments[len(m.Allotments)-1], m.Allotments[:len(m.Allotments)-1]
 					m.Available -= allotment.Amount
@@ -100,9 +96,9 @@ func New(cash int) *Money {
 				c <- allotment
 			case signal := <-m.put:
 				// Push Allotment to m.Allotments.
-				allotment := signal.Payload.(Allotment)
+				allotment := signal.Payload.(structs.Allotment)
 				// Don't want empty Allotments.
-				if allotment != (Allotment{}) {
+				if allotment != (structs.Allotment{}) {
 					m.Allotments = append(m.Allotments, allotment)
 					m.Available += allotment.Amount
 					// Trivial to see that excess allotments come in means more Total.
@@ -142,9 +138,9 @@ func New(cash int) *Money {
 }
 
 // Mindless allocation of 1% Allotments.
-func reallot(cash int) []Allotment {
-	allotments := []Allotment{}
-	allotment := Allotment{}
+func reallot(cash int) []structs.Allotment {
+	allotments := []structs.Allotment{}
+	allotment := structs.Allotment{}
 	allotment.Amount = cash / 100
 	if allotment.Amount <= 0 {
 		return allotments

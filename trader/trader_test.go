@@ -1,7 +1,6 @@
 package trader
 
 import (
-	"github.com/eliwjones/thebox/money"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 	"testing"
@@ -19,7 +18,7 @@ func Test_Trader_constructOrder_Option(t *testing.T) {
 
 	minCommission := td.commission[util.OPTION]["base"] + td.commission[util.OPTION]["unit"]
 
-	po := ProtoOrder{Allotment: money.Allotment{}, Path: structs.Path{}}
+	po := ProtoOrder{Allotment: structs.Allotment{}, Path: structs.Path{}}
 	po.Path.Destination.Type = util.OPTION
 	po.Path.Destination.Symbol = "GOOG MAY 2014 1234 PUT"
 
@@ -43,7 +42,7 @@ func Test_Trader_constructOrder_Stock(t *testing.T) {
 
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
 
-	po := ProtoOrder{Allotment: money.Allotment{}, Path: structs.Path{}}
+	po := ProtoOrder{Allotment: structs.Allotment{}, Path: structs.Path{}}
 	po.Path.Destination.Type = util.STOCK
 	po.Path.Destination.Symbol = "GOOG"
 

@@ -1,7 +1,6 @@
 package trader
 
 import (
-	"github.com/eliwjones/thebox/money"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -9,8 +8,8 @@ import (
 )
 
 type ProtoOrder struct {
-	Allotment money.Allotment // Money alloted for order.
-	Path      structs.Path    // How it wishes to "go out" and "return".
+	Allotment structs.Allotment // Money alloted for order.
+	Path      structs.Path      // How it wishes to "go out" and "return".
 }
 
 type Trader struct {

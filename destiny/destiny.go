@@ -1,6 +1,8 @@
 package destiny
 
 import (
+	"github.com/eliwjones/thebox/dispatcher"
+	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -9,12 +11,15 @@ import (
 )
 
 type Destiny struct {
-	destinations []structs.Destination // Need those destinations.
-	paths        []structs.Path        // Timestamped paths to destinations..
-	maxage       int64                 // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
-	put          chan structs.Signal   // New Paths come down this channel.
-	decay        chan chan bool        // Process of decay has begun.
-	decaying     bool                  // Currently decaying, so block put,get.
+	destinations []structs.Destination         // Need those destinations.
+	paths        []structs.Path                // Timestamped paths to destinations..
+	maxage       int64                         // Oldest Path allowed.  // Should be a function?  For "easy" tuning?
+	put          chan structs.Signal           // New Paths come down this channel.
+	decay        chan chan bool                // Process of decay has begun.
+	decaying     bool                          // Currently decaying, so block put,get.
+	dispatcher   *dispatcher.Dispatcher        // My megaphone.
+	amIn         chan structs.AllotmentMessage // Allotments come in here.
+	dIn          chan structs.Delta            // Deltas come in here.
 }
 
 func (d *Destiny) Get() (structs.Path, error) {
@@ -54,6 +59,10 @@ func New(maxage int64) *Destiny {
 	d.decay = make(chan chan bool)
 	d.decaying = false
 
+	d.dispatcher = dispatcher.New(1000)
+	d.amIn = make(chan structs.AllotmentMessage, 1000)
+	d.dIn = make(chan structs.Delta, 1000)
+
 	// Process Put, Decay calls.
 	go func() {
 		for {
@@ -77,6 +86,35 @@ func New(maxage int64) *Destiny {
 		}
 	}()
 
+	// Grind Allotments into ProtoOrders.
+	go func() {
+		for am := range d.amIn {
+			// Combine allotment with Path and send to Trader as ProtoOrder.
+			p, err := d.Get()
+			if err != nil {
+				if am.Reply != nil {
+					am.Reply <- am.Allotment
+				}
+				continue
+			}
+
+			po := trader.ProtoOrder{Allotment: am.Allotment, Path: p}
+			d.dispatcher.Send(po, "protoorder")
+
+			if am.Reply != nil {
+				am.Reply <- true
+			}
+		}
+	}()
+
+	// Process Deltas.
+	go func() {
+		for delta := range d.dIn {
+			// Dummy hueristic, use better.
+			pathModifier(delta, d)
+		}
+	}()
+
 	return d
 }
 
@@ -90,4 +128,10 @@ func decay(paths []structs.Path, maxage int64) []structs.Path {
 		newpaths = append(newpaths, path)
 	}
 	return newpaths
+}
+
+func pathModifier(delta structs.Delta, d *Destiny) {
+	if delta.Percent > 100 {
+		d.Put(delta.Path, false)
+	}
 }

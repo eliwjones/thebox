@@ -45,7 +45,7 @@ func Test_Money_Put(t *testing.T) {
 	count := len(m.Allotments)
 	total := m.Total
 
-	a := Allotment{Amount: 1000 * 100}
+	a := structs.Allotment{Amount: 1000 * 100}
 	m.Put(a, true)
 
 	if len(m.Allotments) != count+1 {
@@ -58,7 +58,7 @@ func Test_Money_Put(t *testing.T) {
 
 	// Verify cannot add empty Allotment.
 	count = len(m.Allotments)
-	m.Put(Allotment{}, true)
+	m.Put(structs.Allotment{}, true)
 	if len(m.Allotments) != count {
 		t.Errorf("Empty Allotment should not have been added!")
 	}

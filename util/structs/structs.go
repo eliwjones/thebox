@@ -4,6 +4,15 @@ import (
 	"github.com/eliwjones/thebox/util"
 )
 
+type Allotment struct {
+	Amount int // Some parcel of total value in cents.
+}
+
+type AllotmentMessage struct {
+	Allotment Allotment
+	Reply     chan interface{}
+}
+
 type Delta struct {
 	Amount  int
 	Percent float32
