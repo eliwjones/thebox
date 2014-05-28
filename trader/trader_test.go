@@ -1,8 +1,11 @@
 package trader
 
 import (
+	"github.com/eliwjones/thebox/adapter/simulate"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
+
+	"strings"
 	"testing"
 )
 
@@ -31,14 +34,14 @@ func constructValidOptionProtoOrder(td *Trader) structs.ProtoOrder {
 }
 
 func Test_Trader_New(t *testing.T) {
-	td := New(10)
+	td := New(simulate.New("simulate", "simulation"))
 	if td == nil {
 		t.Errorf("Trader New() call failed!")
 	}
 }
 
 func Test_Trader_constructOrder_Option(t *testing.T) {
-	td := New(10)
+	td := New(simulate.New("simulate", "simulation"))
 
 	po := constructValidOptionProtoOrder(td)
 
@@ -55,7 +58,7 @@ func Test_Trader_constructOrder_Option(t *testing.T) {
 }
 
 func Test_Trader_constructOrder_Stock(t *testing.T) {
-	td := New(10)
+	td := New(simulate.New("simulate", "simulation"))
 
 	po := constructValidStockProtoOrder(td)
 
@@ -73,7 +76,7 @@ func Test_Trader_constructOrder_Stock(t *testing.T) {
 }
 
 func Test_Trader_Processor_ProtoOrder(t *testing.T) {
-	td := New(10)
+	td := New(simulate.New("simulate", "simulation"))
 
 	po := constructValidStockProtoOrder(td)
 
@@ -81,8 +84,8 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 
 	td.pomIn <- structs.ProtoOrderMessage{ProtoOrder: po, Reply: reply}
 	response := <-reply
-	if response.(string) != "dummyorderID" {
-		t.Errorf("Expected: %s, Got: %s!", "dummyorderID", response.(string))
+	if !strings.HasPrefix(response.(string), "order-") {
+		t.Errorf("Expected: order-*, Got: %s!", response.(string))
 	}
 
 	// Invalid ProtoOrder should be sent back.

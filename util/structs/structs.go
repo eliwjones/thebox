@@ -32,6 +32,7 @@ type Order struct {
 	Limitprice int               // Price in cents to pay?  (And convert with api adapter?)
 	Type       util.ContractType // STOCK, OPTION
 	Maxcost    int               // Expected maximum expenditure for order.
+	ProtoOrder ProtoOrder        // Needed for ultimate Delta calculation? (Maybe just loosely associate by id)
 }
 
 type Path struct {
