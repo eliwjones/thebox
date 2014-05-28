@@ -47,6 +47,16 @@ type Position struct {
 	Fillprice int    // price per unit paid in cents.
 }
 
+type ProtoOrder struct {
+	Allotment Allotment // Money alloted for order.
+	Path      Path      // How it wishes to "go out" and "return".
+}
+
+type ProtoOrderMessage struct {
+	ProtoOrder ProtoOrder
+	Reply      chan interface{}
+}
+
 type Subscription struct {
 	Id         string           // What is id of thing you are subscribing to.
 	Whoami     string           // Who are you in case we need to delete.

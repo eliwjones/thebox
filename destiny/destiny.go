@@ -2,7 +2,6 @@ package destiny
 
 import (
 	"github.com/eliwjones/thebox/dispatcher"
-	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -98,7 +97,7 @@ func New(maxage int64) *Destiny {
 				continue
 			}
 
-			po := trader.ProtoOrder{Allotment: am.Allotment, Path: p}
+			po := structs.ProtoOrder{Allotment: am.Allotment, Path: p}
 			d.dispatcher.Send(po, "protoorder")
 
 			if am.Reply != nil {

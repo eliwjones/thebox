@@ -1,7 +1,6 @@
 package destiny
 
 import (
-	"github.com/eliwjones/thebox/trader"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
@@ -105,8 +104,8 @@ func Test_Destiny_Processor_Allotment(t *testing.T) {
 		t.Errorf("Expected: 1, Got: %d!", len(tc))
 	}
 	po := <-tc
-	if (po != trader.ProtoOrder{Allotment: a, Path: p}) {
-		t.Errorf("Expected: %+v, Got: %+v!", trader.ProtoOrder{Allotment: a, Path: p}, po)
+	if (po != structs.ProtoOrder{Allotment: a, Path: p}) {
+		t.Errorf("Expected: %+v, Got: %+v!", structs.ProtoOrder{Allotment: a, Path: p}, po)
 	}
 
 	// Verify kickback of Allotment when no Paths.

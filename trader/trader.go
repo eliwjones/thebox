@@ -1,29 +1,26 @@
 package trader
 
 import (
+	"github.com/eliwjones/thebox/dispatcher"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
 )
 
-type ProtoOrder struct {
-	Allotment structs.Allotment // Money alloted for order.
-	Path      structs.Path      // How it wishes to "go out" and "return".
-}
-
 type Trader struct {
 	positions  []structs.Position                     // Current outstanding positions.
-	in         chan structs.Message                   // Generally, ProtoOrders coming in.
+	pomIn      chan structs.ProtoOrderMessage         // Generally, ProtoOrders coming in.
 	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
-	multiplier map[util.ContractType]int
-	commission map[util.ContractType]map[string]int // commission fees per type for base, unit.
+	multiplier map[util.ContractType]int              // Stocks trade in units of 1, Options in units of 100.
+	commission map[util.ContractType]map[string]int   // commission fees per type for base, unit.
+	dispatcher *dispatcher.Dispatcher                 // My megaphone.
 }
 
 func New(inBuf int) *Trader {
 	t := &Trader{}
 	t.positions = []structs.Position{}
-	t.in = make(chan structs.Message, inBuf)
+	t.pomIn = make(chan structs.ProtoOrderMessage, inBuf)
 	t.out = make(map[string]map[string]chan interface{})
 
 	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
@@ -31,36 +28,27 @@ func New(inBuf int) *Trader {
 	t.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
 	t.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
 
-	// Proccess incoming trades, deltas.
-	go func() {
-		for message := range t.in {
-			switch message.Data.(type) {
-			case structs.Subscription:
-				s, _ := message.Data.(structs.Subscription)
-				if t.out[s.Id] == nil {
-					t.out[s.Id] = make(map[string]chan interface{})
-				}
-				t.out[s.Id][s.Whoami] = s.Subscriber
-			case ProtoOrder:
-				po, _ := message.Data.(ProtoOrder)
-				o, err := t.constructOrder(po)
-				if err != nil {
-					// Can't construct order, send back.
-					if message.Reply != nil {
-						message.Reply <- po
-					}
-					continue
-				}
-				// Submit order for execution.
-				processOrder(o)
+	t.dispatcher = dispatcher.New(1000)
 
-				if message.Reply != nil {
-					message.Reply <- true
+	// Grind ProtoOrders into Orders.
+	go func() {
+		for pom := range t.pomIn {
+			// Combine allotment with Path and send to Trader as ProtoOrder.
+			o, err := t.constructOrder(pom.ProtoOrder)
+			if err != nil {
+				if pom.Reply != nil {
+					pom.Reply <- pom.ProtoOrder
 				}
-			case structs.Delta:
-				d, _ := message.Data.(structs.Delta)
-				for _, subscriber := range t.out["delta"] {
-					subscriber <- d
+				continue
+			}
+
+			// Submit order for execution.
+			oid, err := processOrder(o)
+			if pom.Reply != nil {
+				if err != nil {
+					pom.Reply <- false
+				} else {
+					pom.Reply <- oid
 				}
 			}
 		}
@@ -69,7 +57,7 @@ func New(inBuf int) *Trader {
 	return t
 }
 
-func (t *Trader) constructOrder(po ProtoOrder) (structs.Order, error) {
+func (t *Trader) constructOrder(po structs.ProtoOrder) (structs.Order, error) {
 	o := structs.Order{Symbol: po.Path.Destination.Symbol, Type: po.Path.Destination.Type}
 	o.Volume = (po.Allotment.Amount - t.commission[o.Type]["base"]) / (po.Path.LimitOpen * t.multiplier[o.Type])
 	o.Limitprice = po.Path.LimitOpen
@@ -83,12 +71,6 @@ func (t *Trader) constructOrder(po ProtoOrder) (structs.Order, error) {
 		return o, errors.New("Impossible order. Not enough Allotment to cover commission.")
 	}
 	return o, nil
-}
-
-func (t *Trader) Subscribe(id string, whoami string, subscriber chan interface{}) {
-	// Mainly to subscribe to deltas.
-	s := structs.Subscription{Id: id, Whoami: whoami, Subscriber: subscriber}
-	t.in <- structs.Message{Data: s}
 }
 
 func processOrder(o structs.Order) (string, error) {
