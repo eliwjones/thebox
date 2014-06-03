@@ -18,7 +18,7 @@ func Test_Pulsar_New(t *testing.T) {
 func Test_Pulsar_Periods(t *testing.T) {
 	for period := range periods {
 		p := New(0, period)
-		count := period/4
+		count := period / 4
 
 		timer1 := make(chan interface{}, 2*count)
 		p.Subscribe("tester1", timer1)
