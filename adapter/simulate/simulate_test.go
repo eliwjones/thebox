@@ -32,7 +32,7 @@ func Test_Simulate_New(t *testing.T) {
 func Test_Simulate_Connect(t *testing.T) {
 	s := &Simulate{}
 
-	token, _ := s.Connect("simulate", "simulation")
+	token, _ := s.Connect("simulate", "simulation", "")
 	if token != TOKEN {
 		t.Errorf("Should have received TOKEN!")
 	}

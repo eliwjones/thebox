@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -18,9 +17,22 @@ const (
 	BASEURL = "https://apis.tdameritrade.com"
 )
 
-type LoginResult struct {
+// Lazy Kitchen Sink Struct.
+type TDAResponse struct {
 	SessionId string `xml:"xml-log-in>session-id"`
 	AccountId string `xml:"xml-log-in>associated-account-id"`
+
+	AvailableFunds string `xml:"balance>available-funds-for-trading"`
+	AccountValue   string `xml:"balance>account-value>current"`
+
+	StockPositions  []Position `xml:"positions>stocks>position"`
+	OptionPositions []Position `xml:"positions>options>position"`
+}
+
+type Position struct {
+	Symbol string `xml:"security>symbol"`
+	Volume string `xml:"quantity"`
+	Value  string `xml:"current-value"`
 }
 
 type TDAmeritrade struct {
@@ -38,28 +50,37 @@ type TDAmeritrade struct {
 	Value     int                         // total account value (cash + position value).
 }
 
-func New(id string, auth string, source string) *TDAmeritrade {
+func New(id string, auth string, source string, jsessionid string) *TDAmeritrade {
 	s := &TDAmeritrade{Id: id, Auth: auth, Source: source}
 
-	//s.JsessionID, _ = s.Connect(s.Id, s.Auth)
+	s.JsessionID, _ = s.Connect(s.Id, s.Auth, jsessionid)
+
 	s.Tables = map[string]int{"position": 1, "order": 1, "cash": 1, "value": 1}
 
-	// Mocked data.  Not about to make actual http api to simulate external resource.
-	s.Cash = 1000000 * 100 // $1 million in cents.
-	s.Value = s.Cash
+	resources, _ := s.GetBalances()
+	s.Cash = resources["cash"]
+	s.Value = resources["value"]
 	s.Positions = map[string]structs.Position{}
 	s.Orders = map[string]structs.Order{}
 
 	return s
 }
 
-func (s *TDAmeritrade) Connect(id string, auth string) (string, error) {
+func (s *TDAmeritrade) Connect(id string, auth string, jsessionid string) (string, error) {
+	if jsessionid != "" {
+		params := map[string]string{"source": s.Source}
+		body, _ := request(BASEURL+"/apps/KeepAlive"+";jsessionid="+jsessionid, "GET", params)
+		if string(body) == "LoggedOn" {
+			return jsessionid, nil
+		}
+
+	}
 	params := map[string]string{"userid": id, "password": auth, "source": s.Source, "version": "1.0"}
 	body, err := request(BASEURL+"/apps/100/LogIn", "POST", params)
 	if err != nil {
 		return "", err
 	}
-	result := LoginResult{}
+	result := TDAResponse{}
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
 		return "", err
@@ -71,14 +92,49 @@ func (s *TDAmeritrade) Connect(id string, auth string) (string, error) {
 	return sessionID, nil
 }
 
+func (s *TDAmeritrade) GetBalances() (map[string]int, error) {
+	params := map[string]string{"source": s.Source, "type": "b"}
+	body, err := request(BASEURL+"/apps/100/BalancesAndPositions"+";jsessionid="+s.JsessionID, "GET", params)
+	if err != nil {
+		return map[string]int{"cash": s.Cash, "value": s.Value}, err
+	}
+	result := TDAResponse{}
+	err = xml.Unmarshal(body, &result)
+	if err != nil {
+		return map[string]int{"cash": s.Cash, "value": s.Value}, err
+	}
+	cash, err := strconv.ParseFloat(result.AvailableFunds, 64)
+	if err != nil {
+		return map[string]int{"cash": s.Cash, "value": s.Value}, err
+	}
+	value, err := strconv.ParseFloat(result.AccountValue, 64)
+	if err != nil {
+		return map[string]int{"cash": s.Cash, "value": s.Value}, err
+	}
+	// Convert to cents and return int.
+	return map[string]int{"cash": int(cash * 100), "value": int(value * 100)}, nil
+}
+
+func (s *TDAmeritrade) GetOrders(filter string) (map[string]structs.Order, error) {
+	return s.Orders, nil
+}
+
 func (s *TDAmeritrade) GetPositions() (map[string]structs.Position, error) {
-	// Will have to just go through /apps/100/BalancesAndPositions;jsessionid=BLAH?source=BLAH
-	params := map[string]string{"source": s.Source}
-	_, err := request(BASEURL+"/apps/100/BalancesAndPositions"+";jsessionid="+s.JsessionID, "GET", params)
+	params := map[string]string{"source": s.Source, "type": "p"}
+	body, err := request(BASEURL+"/apps/100/BalancesAndPositions"+";jsessionid="+s.JsessionID, "GET", params)
 	if err != nil {
 		return s.Positions, err
 	}
+	result := TDAResponse{}
+	err = xml.Unmarshal(body, &result)
+	if err != nil {
+		return nil, err
+	}
 	return s.Positions, nil
+}
+
+func (s *TDAmeritrade) SubmitOrder(order structs.Order) (string, error) {
+	return "", nil
 }
 
 func request(urlStr string, method string, params map[string]string) ([]byte, error) {
@@ -117,6 +173,5 @@ func request(urlStr string, method string, params map[string]string) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("BODY:\n%s\n", string(body))
 	return body, nil
 }

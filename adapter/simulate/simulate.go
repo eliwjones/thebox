@@ -27,7 +27,7 @@ type Simulate struct {
 
 func New(id string, auth string) *Simulate {
 	s := &Simulate{Id: id, Auth: auth}
-	s.Token, _ = s.Connect(s.Id, s.Auth)
+	s.Token, _ = s.Connect(s.Id, s.Auth, "")
 	s.Tables = map[string]int{"position": 1, "order": 1, "cash": 1, "value": 1}
 
 	// Mocked data.  Not about to make actual http api to simulate external resource.
@@ -39,7 +39,7 @@ func New(id string, auth string) *Simulate {
 	return s
 }
 
-func (s *Simulate) Connect(id string, auth string) (string, error) {
+func (s *Simulate) Connect(id string, auth string, token string) (string, error) {
 	if id != "simulate" || auth != "simulation" {
 		return "", errors.New("Auth Failed for user: %s, auth: %s!")
 	}
@@ -73,6 +73,14 @@ func (s *Simulate) Get(table string, key string) (interface{}, error) {
 	}
 
 	return nil, fmt.Errorf("No data found for key: %s!", key)
+}
+
+func (s *Simulate) GetBalances() (map[string]int, error) {
+	if s.Token != TOKEN {
+		return nil, errors.New("Bad Auth Token!")
+	}
+	// More complex api call and munging goes here.
+	return map[string]int{"cash": s.Cash, "value": s.Value}, nil
 }
 
 func (s *Simulate) GetOrders(filter string) (map[string]structs.Order, error) {
