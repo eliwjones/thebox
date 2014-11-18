@@ -25,6 +25,23 @@ type Destination struct {
 	Type       util.ContractType // util.OPTION, util.STOCK
 }
 
+// For now, intuitively setting all prices to cents.
+// Better not forget to convert to dollars on submission!
+type Option struct {
+	Expiration string
+	Strike     int
+	Symbol     string
+	Type       string
+
+	Ask          int
+	Bid          int
+	IV           float64
+	Last         int
+	OpenInterest int
+	Underlying   string
+	Volume       int
+}
+
 type Order struct {
 	Id         string            // Filled in if linked to Position.
 	Symbol     string            // Whatever have to submit to api.

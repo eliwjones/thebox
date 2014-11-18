@@ -27,6 +27,31 @@ type TDAResponse struct {
 
 	StockPositions  []Position `xml:"positions>stocks>position"`
 	OptionPositions []Position `xml:"positions>options>position"`
+
+	OptionChains []OptionChain `xml:"option-chain-results>option-date"`
+}
+
+type OptionChain struct {
+	Expiration    string         `xml:"date"`
+	OptionStrikes []OptionStrike `xml:"option-strike"`
+}
+
+type OptionContainer struct {
+	Ask           string `xml:"ask"`
+	Bid           string `xml:"bid"`
+	IV            string `xml:"implied-volatility"`
+	Last          string `xml:"last"`
+	LastTradeDate string `xml:"last-trade-date"`
+	OpenInterest  string `xml:"open-interest"`
+	Symbol        string `xml:"option-symbol"`
+	Underlying    string `xml:"underlying-symbol"`
+	Volume        string `xml:"volume"`
+}
+
+type OptionStrike struct {
+	StrikePrice string          `xml:"strike-price"`
+	Put         OptionContainer `xml:"put"`
+	Call        OptionContainer `xml:"call"`
 }
 
 type Position struct {
@@ -115,6 +140,47 @@ func (s *TDAmeritrade) GetBalances() (map[string]int, error) {
 	return map[string]int{"cash": int(cash * 100), "value": int(value * 100)}, nil
 }
 
+func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, error) {
+	options := make([]structs.Option, 0)
+
+	params := map[string]string{"source": s.Source, "symbol": symbol, "quotes": "true"}
+	body, err := request(BASEURL+"/apps/200/OptionChain"+";jsessionid="+s.JsessionID, "GET", params)
+	if err != nil {
+		return options, err
+	}
+	result := TDAResponse{}
+	err = xml.Unmarshal(body, &result)
+	if err != nil {
+		return options, err
+	}
+
+	for _, optionchain := range result.OptionChains {
+		for _, strike := range optionchain.OptionStrikes {
+			parsedstrike, err := strconv.ParseFloat(strike.StrikePrice, 64)
+			if err != nil {
+				continue
+			}
+			strikeprice := int(parsedstrike * 100)
+
+			option := containerToOption(strike.Put)
+			option.Expiration = optionchain.Expiration
+			option.Strike = strikeprice
+			option.Type = "p"
+
+			options = append(options, option)
+
+			option = containerToOption(strike.Call)
+			option.Expiration = optionchain.Expiration
+			option.Strike = strikeprice
+			option.Type = "c"
+
+			options = append(options, option)
+		}
+	}
+
+	return options, nil
+}
+
 func (s *TDAmeritrade) GetOrders(filter string) (map[string]structs.Order, error) {
 	return s.Orders, nil
 }
@@ -135,6 +201,27 @@ func (s *TDAmeritrade) GetPositions() (map[string]structs.Position, error) {
 
 func (s *TDAmeritrade) SubmitOrder(order structs.Order) (string, error) {
 	return "", nil
+}
+
+func containerToOption(container OptionContainer) structs.Option {
+	option := structs.Option{}
+	option.Symbol = container.Symbol
+	option.Underlying = container.Underlying
+
+	option.Volume, _ = strconv.Atoi(container.Volume)
+	option.OpenInterest, _ = strconv.Atoi(container.OpenInterest)
+	option.IV, _ = strconv.ParseFloat(container.IV, 64)
+
+	parsed, _ := strconv.ParseFloat(container.Ask, 64)
+	option.Ask = int(parsed * 100)
+
+	parsed, _ = strconv.ParseFloat(container.Bid, 64)
+	option.Bid = int(parsed * 100)
+
+	parsed, _ = strconv.ParseFloat(container.Last, 64)
+	option.Last = int(parsed * 100)
+
+	return option
 }
 
 func request(urlStr string, method string, params map[string]string) ([]byte, error) {

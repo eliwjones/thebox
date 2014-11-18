@@ -100,6 +100,31 @@ func Test_TDAmeritrade_GetBalances(t *testing.T) {
 	}
 }
 
+func Test_TDAmeritrade_GetOptions(t *testing.T) {
+	underlying := "INTC"
+	options, err := gtda.GetOptions(underlying)
+	if err != nil {
+		t.Errorf("Got err: %s", err)
+	}
+	for _, option := range options {
+		if option.Type != "p" && option.Type != "c" {
+			t.Errorf("Expected type 'p' or 'c'. Got: %s", option.Type)
+		}
+		if option.Strike == 0 {
+			t.Errorf("0 is not a valid strike.")
+		}
+		if option.Expiration == "" {
+			t.Errorf("Expiration is empty.")
+		}
+		if option.Symbol == "" {
+			t.Errorf("Symbol does not look right.")
+		}
+		if option.Underlying != underlying {
+			t.Errorf("Expected: %s. Got: %s", underlying, option.Underlying)
+		}
+	}
+}
+
 func Test_TDAmeritrade_GetPositions(t *testing.T) {
 	_, err := gtda.GetPositions()
 	if err != nil {
