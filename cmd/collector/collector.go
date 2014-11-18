@@ -12,9 +12,12 @@ import (
 )
 
 func main() {
-	id, pass, sid, _, _ := funcs.GetConfig()
+	id, pass, sid, jsess, _ := funcs.GetConfig()
 
-	tda := tdameritrade.New(id, pass, sid, "")
+	tda := tdameritrade.New(id, pass, sid, jsess)
+	if tda.JsessionID != jsess {
+		funcs.UpdateConfig(id, pass, sid, tda.JsessionID)
+	}
 	options, err := tda.GetOptions("INTC")
 
 	if err != nil {
