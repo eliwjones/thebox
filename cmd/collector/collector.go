@@ -3,12 +3,17 @@ package main
 import (
 	"github.com/eliwjones/thebox/adapter/tdameritrade"
 	"github.com/eliwjones/thebox/util/funcs"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
+)
+
+var (
+	symbols = [3]string{"AAPL", "GOOG", "BABA"}
 )
 
 func main() {
@@ -18,14 +23,30 @@ func main() {
 	if tda.JsessionID != jsess {
 		funcs.UpdateConfig(id, pass, sid, tda.JsessionID)
 	}
-	options, err := tda.GetOptions("INTC")
 
-	if err != nil {
-		fmt.Sprintf("Got err: %s", err)
+	pipe := make(chan []structs.Option, len(symbols))
+	for _, symbol := range symbols {
+		fmt.Printf("Getting: %s\n", symbol)
+		go getOptions(tda, symbol, pipe)
 	}
-	for _, option := range options {
-		now := time.Now()
-		limit := now.AddDate(0, 0, 22).Format("20060102")
+
+	holder := make([]structs.Option, 0)
+	for _, _ = range symbols {
+		options := <-pipe
+		if len(options) == 0 {
+			fmt.Println("Received empty options slice.")
+			continue
+		}
+		fmt.Printf("Received: %s\n", options[0].Underlying)
+		holder = append(holder, options...)
+	}
+
+	now := time.Now()
+	limit := now.AddDate(0, 0, 22).Format("20060102")
+	fmt.Printf("LOCAL: %d:%d\n", now.Hour(), now.Minute())
+	fmt.Printf("UTC:   %d:%d\n", now.UTC().Hour(), now.UTC().Minute())
+
+	for _, option := range holder {
 		if option.Expiration > limit {
 			continue
 		}
@@ -36,6 +57,17 @@ func main() {
 		key := fmt.Sprintf("%s_%s_%s_%d", option.Underlying, option.Expiration, option.Type, option.Strike)
 		lazyWriteFile("data", key, stuff)
 	}
+}
+
+func getOptions(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan []structs.Option) {
+	options, _, err := tda.GetOptions(symbol)
+	if err != nil {
+		fmt.Printf("Got err: %s\n", err)
+		return
+	}
+	// Write stock info here? or make frankenstein pipe to send both down?
+	// Make new pipe just for stock?
+	pipe <- options
 }
 
 func lazyWriteFile(folderName string, fileName string, data []byte) error {
