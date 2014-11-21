@@ -29,6 +29,7 @@ type TDAResponse struct {
 	OptionPositions []Position `xml:"positions>options>position"`
 
 	OptionChains []OptionChain `xml:"option-chain-results>option-date"`
+	Underlying   Underlying    `xml: "option-chain-results"`
 }
 
 type OptionChain struct {
@@ -58,6 +59,17 @@ type Position struct {
 	Symbol string `xml:"security>symbol"`
 	Volume string `xml:"quantity"`
 	Value  string `xml:"current-value"`
+}
+
+type Underlying struct {
+	Ask    string `xml:"ask"`
+	Bid    string `xml:"bid"`
+	High   string `xml:"high"`
+	Last   string `xml:"last"`
+	Low    string `xml:"low"`
+	Symbol string `xml:"symbol"`
+	Time   string `xml:"time"` // For now, just a weird HH:MM string since thats what TDA returns.
+	Volume string `xml:"volume"`
 }
 
 type TDAmeritrade struct {
@@ -140,19 +152,22 @@ func (s *TDAmeritrade) GetBalances() (map[string]int, error) {
 	return map[string]int{"cash": int(cash * 100), "value": int(value * 100)}, nil
 }
 
-func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, error) {
+func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, structs.Stock, error) {
 	options := make([]structs.Option, 0)
+	var stock structs.Stock
 
 	params := map[string]string{"source": s.Source, "symbol": symbol, "quotes": "true"}
 	body, err := request(BASEURL+"/apps/200/OptionChain"+";jsessionid="+s.JsessionID, "GET", params)
 	if err != nil {
-		return options, err
+		return options, stock, err
 	}
 	result := TDAResponse{}
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
-		return options, err
+		return options, stock, err
 	}
+
+	stock = underlyingToStock(result.Underlying)
 
 	for _, optionchain := range result.OptionChains {
 		for _, strike := range optionchain.OptionStrikes {
@@ -165,6 +180,7 @@ func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, error) {
 			option := containerToOption(strike.Put)
 			option.Expiration = optionchain.Expiration
 			option.Strike = strikeprice
+			option.Time = stock.Time
 			option.Type = "p"
 
 			options = append(options, option)
@@ -172,13 +188,14 @@ func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, error) {
 			option = containerToOption(strike.Call)
 			option.Expiration = optionchain.Expiration
 			option.Strike = strikeprice
+			option.Time = stock.Time
 			option.Type = "c"
 
 			options = append(options, option)
 		}
 	}
 
-	return options, nil
+	return options, stock, nil
 }
 
 func (s *TDAmeritrade) GetOrders(filter string) (map[string]structs.Order, error) {
@@ -222,6 +239,30 @@ func containerToOption(container OptionContainer) structs.Option {
 	option.Last = int(parsed * 100)
 
 	return option
+}
+
+func underlyingToStock(underlying Underlying) structs.Stock {
+	stock := structs.Stock{}
+	stock.Symbol = underlying.Symbol
+	stock.Time = underlying.Time
+	stock.Volume, _ = strconv.Atoi(underlying.Volume)
+
+	parsed, _ := strconv.ParseFloat(underlying.Ask, 64)
+	stock.Ask = int(parsed * 100)
+
+	parsed, _ = strconv.ParseFloat(underlying.Bid, 64)
+	stock.Bid = int(parsed * 100)
+
+	parsed, _ = strconv.ParseFloat(underlying.High, 64)
+	stock.High = int(parsed * 100)
+
+	parsed, _ = strconv.ParseFloat(underlying.Last, 64)
+	stock.Last = int(parsed * 100)
+
+	parsed, _ = strconv.ParseFloat(underlying.Low, 64)
+	stock.Low = int(parsed * 100)
+
+	return stock
 }
 
 func request(urlStr string, method string, params map[string]string) ([]byte, error) {

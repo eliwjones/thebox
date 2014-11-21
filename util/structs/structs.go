@@ -31,6 +31,7 @@ type Option struct {
 	Expiration string
 	Strike     int
 	Symbol     string
+	Time       string
 	Type       string
 
 	Ask          int
@@ -84,6 +85,18 @@ type Subscription struct {
 type Signal struct {
 	Payload interface{}
 	Wait    chan bool
+}
+
+type Stock struct {
+	Ask    int
+	Bid    int
+	High   int
+	Last   int
+	Low    int
+	Symbol string
+	Time   string  // For now, just a wierd HH:MM string since thats what TDA returns.
+	Volume int
+	
 }
 
 type Message struct {

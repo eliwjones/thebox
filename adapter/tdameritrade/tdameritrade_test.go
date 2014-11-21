@@ -70,7 +70,7 @@ func Test_TDAmeritrade_GetBalances(t *testing.T) {
 
 func Test_TDAmeritrade_GetOptions(t *testing.T) {
 	underlying := "INTC"
-	options, err := gtda.GetOptions(underlying)
+	options, _, err := gtda.GetOptions(underlying)
 	if err != nil {
 		t.Errorf("Got err: %s", err)
 	}
