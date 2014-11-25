@@ -1,8 +1,6 @@
 package funcs
 
 import (
-	"github.com/eliwjones/thebox/util/structs"
-
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -12,6 +10,7 @@ import (
 )
 
 var OptionEncodingOrder = []string{"Underlying", "Symbol", "Expiration", "Time", "Strike", "Bid", "Ask", "Last", "Volume", "OpenInterest", "IV", "Type"}
+var StockEncodingOrder = []string{"Symbol", "Time", "Bid", "Ask", "Last", "Volume", "High", "Low"}
 
 var MS = func(time time.Time) int64 {
 	return time.UnixNano() / 1000000
@@ -19,33 +18,39 @@ var MS = func(time time.Time) int64 {
 
 var Now = func() time.Time { return time.Now() }
 
-func DecodeOption(eo string) (structs.Option, error) {
-	o := structs.Option{}
-	r := reflect.ValueOf(&o).Elem()
+func Decode(eo string, c interface{}, encodingOrder []string) error {
+	r := reflect.ValueOf(c).Elem()
 
 	s := strings.Split(eo, ",")
 	for idx, v := range s {
-		f := r.FieldByName(OptionEncodingOrder[idx])
+		f := r.FieldByName(encodingOrder[idx])
 		switch f.Type().Kind() {
 		case reflect.String:
 			f.SetString(v)
 		case reflect.Int:
-			val, _ := strconv.ParseInt(v, 10, 0)
+			val, err := strconv.ParseInt(v, 10, 0)
+			if err != nil {
+				return err
+			}
 			f.SetInt(val)
 		case reflect.Float64:
-			val, _ := strconv.ParseFloat(v, 64)
+			val, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return err
+			}
 			f.SetFloat(val)
 
 		}
 	}
 
-	return o, nil
+	return nil
 }
 
-func EncodeOption(o structs.Option) (string, error) {
-	r := reflect.ValueOf(&o).Elem()
+func Encode(c interface{}, encodingOrder []string) (string, error) {
+	r := reflect.ValueOf(c).Elem()
+
 	eo := ""
-	for _, propname := range OptionEncodingOrder {
+	for _, propname := range encodingOrder {
 		v := r.FieldByName(propname)
 		switch v.Type().Kind() {
 		case reflect.String:
