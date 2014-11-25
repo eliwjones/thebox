@@ -3,6 +3,7 @@ package tdameritrade
 import (
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/interfaces"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"testing"
 )
@@ -70,7 +71,7 @@ func Test_TDAmeritrade_GetBalances(t *testing.T) {
 
 func Test_TDAmeritrade_GetOptions(t *testing.T) {
 	underlying := "INTC"
-	options, _, err := gtda.GetOptions(underlying)
+	options, stock, err := gtda.GetOptions(underlying)
 	if err != nil {
 		t.Errorf("Got err: %s", err)
 	}
@@ -90,6 +91,15 @@ func Test_TDAmeritrade_GetOptions(t *testing.T) {
 		if option.Underlying != underlying {
 			t.Errorf("Expected: %s. Got: %s", underlying, option.Underlying)
 		}
+	}
+
+	s := structs.Stock{}
+	if s == stock {
+		t.Errorf("Got back zero stock.")
+	}
+
+	if stock.Volume == 0 {
+		t.Errorf("Stock volume is 0.")
 	}
 }
 

@@ -28,8 +28,7 @@ type TDAResponse struct {
 	StockPositions  []Position `xml:"positions>stocks>position"`
 	OptionPositions []Position `xml:"positions>options>position"`
 
-	OptionChains []OptionChain `xml:"option-chain-results>option-date"`
-	Underlying   Underlying    `xml: "option-chain-results"`
+	Underlying Underlying `xml:"option-chain-results"`
 }
 
 type OptionChain struct {
@@ -62,6 +61,8 @@ type Position struct {
 }
 
 type Underlying struct {
+	OptionChains []OptionChain `xml:"option-date"`
+
 	Ask    string `xml:"ask"`
 	Bid    string `xml:"bid"`
 	High   string `xml:"high"`
@@ -169,7 +170,7 @@ func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, structs.Stoc
 
 	stock = underlyingToStock(result.Underlying)
 
-	for _, optionchain := range result.OptionChains {
+	for _, optionchain := range result.Underlying.OptionChains {
 		for _, strike := range optionchain.OptionStrikes {
 			parsedstrike, err := strconv.ParseFloat(strike.StrikePrice, 64)
 			if err != nil {
@@ -245,9 +246,12 @@ func underlyingToStock(underlying Underlying) structs.Stock {
 	stock := structs.Stock{}
 	stock.Symbol = underlying.Symbol
 	stock.Time = underlying.Time
-	stock.Volume, _ = strconv.Atoi(underlying.Volume)
 
-	parsed, _ := strconv.ParseFloat(underlying.Ask, 64)
+	// Sometimes volume comes back in Exponential format...
+	parsed, _ := strconv.ParseFloat(underlying.Volume, 64)
+	stock.Volume = int(parsed)
+
+	parsed, _ = strconv.ParseFloat(underlying.Ask, 64)
 	stock.Ask = int(parsed * 100)
 
 	parsed, _ = strconv.ParseFloat(underlying.Bid, 64)
