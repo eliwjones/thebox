@@ -245,7 +245,7 @@ func containerToOption(container OptionContainer) structs.Option {
 func underlyingToStock(underlying Underlying) structs.Stock {
 	stock := structs.Stock{}
 	stock.Symbol = underlying.Symbol
-	stock.Time = underlying.Time
+	stock.Time = strings.Replace(underlying.Time, ":", "", -1)
 
 	// Sometimes volume comes back in Exponential format...
 	parsed, _ := strconv.ParseFloat(underlying.Volume, 64)
