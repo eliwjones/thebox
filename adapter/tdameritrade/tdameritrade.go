@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -169,6 +170,9 @@ func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, structs.Stoc
 	}
 
 	stock = underlyingToStock(result.Underlying)
+	if stock.Symbol != symbol {
+		return options, stock, fmt.Errorf("Stock.symbol: '%s' != '%s'", stock.Symbol, symbol)
+	}
 
 	for _, optionchain := range result.Underlying.OptionChains {
 		for _, strike := range optionchain.OptionStrikes {
