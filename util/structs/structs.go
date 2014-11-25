@@ -94,9 +94,8 @@ type Stock struct {
 	Last   int
 	Low    int
 	Symbol string
-	Time   string  // For now, just a wierd HH:MM string since thats what TDA returns.
+	Time   string // For now, just a wierd HH:MM string since thats what TDA returns.
 	Volume int
-	
 }
 
 type Message struct {
