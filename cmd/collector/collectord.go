@@ -23,7 +23,7 @@ func main() {
 	pipe := make(chan bool, len(symbols))
 	for _, symbol := range symbols {
 		fmt.Printf("Getting: %s\n", symbol)
-		go collector.GetData(tda, symbol, pipe)
+		go collector.Collect(tda, symbol, pipe)
 	}
 
 	for _, _ = range symbols {
