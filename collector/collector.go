@@ -9,10 +9,18 @@ import (
 	"time"
 )
 
+var root_dir = "collector"
+
 func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 	now := time.Now().UTC()
+	filename := now.Format("20060102")
+	timestamp := now.Format("150405")
+	logpath := fmt.Sprintf("%s/log", root_dir)
+	
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
-		fmt.Println("No need for Sat, Sun.")
+		message := "No need for Sat, Sun."
+		lazyAppendFile(logpath, filename, timestamp + " : " + message)
+		fmt.Println(message)
 		pipe <- false
 		return
 	}
@@ -22,7 +30,9 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 	tooLate, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+late)
 	// Hamfisted block before 13:30 UTC and after 21:00 UTC.
 	if now.Before(tooEarly) || now.After(tooLate) {
-		fmt.Printf("Time %s is before %s UTC or after %s UTC\n", now.Format("15:04:05"), early, late)
+		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", now.Format("15:04:05"), early, late)
+		lazyAppendFile(logpath, filename, timestamp + " : " + message)
+		fmt.Println(message)
 		pipe <- false
 		return
 	}
@@ -31,17 +41,16 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 
 	options, stock, err := tda.GetOptions(symbol)
 	if err != nil {
-		fmt.Printf("Got err: %s\n", err)
+		message := fmt.Sprintf("Got err: %s", err)
+		lazyAppendFile(logpath, filename, timestamp + " : " + message)
+		fmt.Println(message)
 		pipe <- false
 		return
 	}
 
-	filename := now.Format("20060102")
-	timestamp := now.Format("150405")
-
 	es, _ := funcs.Encode(&stock, funcs.StockEncodingOrder)
 
-	path := fmt.Sprintf("data/%s/s", stock.Symbol)
+	path := fmt.Sprintf("%s/data/%s/s", root_dir, stock.Symbol)
 	lazyAppendFile(path, filename, timestamp+","+es)
 
 	for _, option := range options {
@@ -52,7 +61,7 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 		if err != nil {
 			fmt.Sprintf("Got err: %s", err)
 		}
-		path := fmt.Sprintf("data/%s/o/%s/%s", option.Underlying, option.Expiration, option.Type)
+		path := fmt.Sprintf("%s/data/%s/o/%s/%s", root_dir, option.Underlying, option.Expiration, option.Type)
 		lazyAppendFile(path, filename, timestamp+","+eo)
 	}
 
