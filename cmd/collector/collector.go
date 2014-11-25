@@ -5,7 +5,6 @@ import (
 	"github.com/eliwjones/thebox/util/funcs"
 
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 )
@@ -44,7 +43,7 @@ func getData(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 		pipe <- false
 		return
 	}
-	early := "13:38"
+	early := "13:28"
 	late := "21:02"
 	tooEarly, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+early)
 	tooLate, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+late)
@@ -64,10 +63,13 @@ func getData(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 		return
 	}
 
+	filename := now.Format("20060102")
+	timestamp := now.Format("150405")
+
 	es, _ := funcs.Encode(&stock, funcs.StockEncodingOrder)
-	key := fmt.Sprintf("%s", now.Format("20060102_150405"))
+
 	path := fmt.Sprintf("data/%s/s", stock.Symbol)
-	lazyWriteFile(path, key, []byte(es))
+	lazyAppendFile(path, filename, timestamp+","+es)
 
 	for _, option := range options {
 		if option.Expiration > limit {
@@ -77,22 +79,30 @@ func getData(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 		if err != nil {
 			fmt.Sprintf("Got err: %s", err)
 		}
-		key := fmt.Sprintf("%s_%d", now.Format("20060102_150405"), option.Strike)
 		path := fmt.Sprintf("data/%s/o/%s/%s", option.Underlying, option.Expiration, option.Type)
-		lazyWriteFile(path, key, []byte(eo))
+		lazyAppendFile(path, filename, timestamp+","+eo)
 	}
 
 	pipe <- true
 }
 
-func lazyWriteFile(folderName string, fileName string, data []byte) error {
-	err := ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
+func lazyAppendFile(folderName string, fileName string, data string) error {
+	f, err := os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
 		os.MkdirAll(folderName, 0777)
-		err = ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
+		f, err = os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	}
 	if err != nil {
-		fmt.Printf("[LazyWriteFile] Could not WriteFile: %s\nErr: %s\n", folderName+"/"+fileName, err)
+		fmt.Printf("[lazyAppendFile] Could not Open File: %s\nErr: %s\n", folderName+"/"+fileName, err)
+		return err
 	}
-	return err
+	defer f.Close()
+
+	_, err = f.WriteString(data + "\n")
+	if err != nil {
+		fmt.Printf("[lazyAppendFile] Could not AppendFile: %s\nErr: %s\n", folderName+"/"+fileName, err)
+		return err
+	}
+
+	return nil
 }
