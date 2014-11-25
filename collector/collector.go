@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func GetData(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
+func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 	now := time.Now().UTC()
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
 		fmt.Println("No need for Sat, Sun.")
