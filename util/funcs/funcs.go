@@ -34,7 +34,7 @@ func DecodeOption(eo string) (structs.Option, error) {
 			f.SetInt(val)
 		case reflect.Float64:
 			val, _ := strconv.ParseFloat(v, 64)
-			f.SetFloat(v)
+			f.SetFloat(val)
 
 		}
 	}
