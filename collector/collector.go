@@ -5,6 +5,7 @@ import (
 	"github.com/eliwjones/thebox/util/funcs"
 
 	"fmt"
+	"io/ioutil"
 	"os"
 	"time"
 )
@@ -16,6 +17,67 @@ type collector struct {
 
 func New(root_dir string, adapter *tdameritrade.TDAmeritrade) *collector {
 	return &collector{root_dir: root_dir, adapter: adapter}
+}
+
+func (c *collector) Cleanup(date string) []error {
+	errors := []error{}
+
+	data_dir := c.root_dir + "/data"
+	d, _ := os.Open(data_dir)
+	defer d.Close()
+	symbols, _ := d.Readdirnames(-1)
+	for _, symbol := range symbols {
+		options_dir := data_dir + "/" + symbol + "/o"
+		e, err := os.Open(options_dir)
+		if err != nil {
+			//fmt.Printf("No 'o' subdir found for: %s!\n", data_dir)
+			errors = append(errors, err)
+			continue
+		}
+		defer e.Close()
+		expirations, _ := e.Readdirnames(-1)
+		for _, expiration := range expirations {
+			if len(expiration) != len("20140101") {
+				fmt.Printf("Bad Length for: %s!\n", expiration)
+				continue
+			}
+			exp_dir := options_dir + "/" + expiration
+			for _, _type := range []string{"c", "p"} {
+				cleanup_file := exp_dir + "/" + _type + "/" + date
+				contents, err := ioutil.ReadFile(cleanup_file)
+				if err != nil {
+					//fmt.Printf("Could not find cleanup_file\n\t%s\n\t%s\n", cleanup_file, err)
+					errors = append(errors, err)
+					continue
+				}
+				cleanupOptionFile(cleanup_file, contents)
+			}
+		}
+		stock_file := data_dir + "/" + symbol + "/s/" + date
+		contents, err := ioutil.ReadFile(stock_file)
+		if err != nil {
+			//fmt.Printf("Could not read stock_file! err: %s", err)
+			errors = append(errors, err)
+			continue
+		}
+		cleanupStockFile(stock_file, contents)
+	}
+	if len(errors) == 0 {
+		errors = nil
+	}
+	return errors
+}
+
+func cleanupOptionFile(fileName string, contents []byte) {
+	suspectFileName := fileName + ".suspect"
+	cleanFileName := fileName + ".clean"
+	fmt.Printf("CLEANUP OPTIONS!!\n\t%s\n\t%s\n\t%s\n", fileName, suspectFileName, cleanFileName)
+}
+
+func cleanupStockFile(fileName string, contents []byte) {
+	suspectFileName := fileName + ".suspect"
+	cleanFileName := fileName + ".clean"
+	fmt.Printf("CLEANUP STOCK!!\n\t%s\n\t%s\n\t%s\n", fileName, suspectFileName, cleanFileName)
 }
 
 func (c *collector) Collect(symbol string, pipe chan bool) {
