@@ -49,15 +49,20 @@ func Test_OptionEncodingOrder(t *testing.T) {
 }
 
 func Test_getConfig(t *testing.T) {
-	_, _, _, _, err := GetConfig()
+	_, err := GetConfig("config")
 	if err != nil {
 		t.Errorf("Got err: %s!", err)
+	}
+
+	_, err = GetConfig("nonexistent")
+	if err == nil {
+		t.Errorf("Not expecting to find 'nonexistent' file.")
 	}
 }
 
 func Test_updateConfig(t *testing.T) {
-	id, pass, sid, jsess, _ := GetConfig()
-	err := UpdateConfig(id, pass, sid, jsess)
+	lines, _ := GetConfig("config")
+	err := UpdateConfig("config", lines)
 	if err != nil {
 		t.Errorf("Got err: %s!", err)
 	}

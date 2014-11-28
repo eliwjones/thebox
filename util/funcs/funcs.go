@@ -65,17 +65,17 @@ func Encode(c interface{}, encodingOrder []string) (string, error) {
 	return eo[1:], nil
 }
 
-func GetConfig() (string, string, string, string, error) {
-	b, err := ioutil.ReadFile("config")
+func GetConfig(path string) ([]string, error) {
+	b, err := ioutil.ReadFile(path)
 	if err != nil {
-		return "", "", "", "", err
+		return []string{}, err
 	}
 	lines := strings.Split(string(b), "\n")
-	return lines[0], lines[1], lines[2], lines[3], nil
+	return lines, nil
 }
 
-func UpdateConfig(id string, pass string, sid string, jsess string) error {
-	f := []byte(fmt.Sprintf("%s\n%s\n%s\n%s", id, pass, sid, jsess))
-	err := ioutil.WriteFile("config", f, 0777)
+func UpdateConfig(path string, lines []string) error {
+	f := []byte(strings.Join(lines, "\n"))
+	err := ioutil.WriteFile(path, f, 0777)
 	return err
 }

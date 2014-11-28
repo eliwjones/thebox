@@ -14,7 +14,11 @@ var (
 )
 
 func Test_TDAmeritrade_Connect(t *testing.T) {
-	id, pass, sid, jsess, _ := funcs.GetConfig()
+	lines, _ := funcs.GetConfig("config")
+	id := lines[0]
+	pass := lines[1]
+	sid := lines[2]
+	jsess := lines[3]
 
 	tda := &TDAmeritrade{Source: sid}
 
@@ -25,7 +29,7 @@ func Test_TDAmeritrade_Connect(t *testing.T) {
 		jsessionid = token
 		if jsessionid != jsess {
 			// Update Config.
-			funcs.UpdateConfig(id, pass, sid, jsessionid)
+			funcs.UpdateConfig("config", []string{id, pass, sid, jsessionid})
 		}
 	}
 
@@ -46,14 +50,21 @@ func Test_TDAmeritrade_Connect(t *testing.T) {
 }
 
 func Test_TDAmeritrade_New(t *testing.T) {
-	id, pass, sid, _, _ := funcs.GetConfig()
+	lines, _ := funcs.GetConfig("config")
+	id := lines[0]
+	pass := lines[1]
+	sid := lines[2]
+
 	tda := New(id, pass, sid, jsessionid)
 
 	gtda = tda
 }
 
 func Test_TDAmeritrade_Adapter(t *testing.T) {
-	id, pass, sid, _, _ := funcs.GetConfig()
+	lines, _ := funcs.GetConfig("config")
+	id := lines[0]
+	pass := lines[1]
+	sid := lines[2]
 
 	var a interfaces.Adapter
 	a = New(id, pass, sid, jsessionid)

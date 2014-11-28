@@ -9,17 +9,24 @@ import (
 	"time"
 )
 
-var root_dir = "collector"
+type collector struct {
+	root_dir string
+	adapter  *tdameritrade.TDAmeritrade
+}
 
-func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
+func New(root_dir string, adapter *tdameritrade.TDAmeritrade) *collector {
+	return &collector{root_dir: root_dir, adapter: adapter}
+}
+
+func (c *collector) Collect(symbol string, pipe chan bool) {
 	now := time.Now().UTC()
 	filename := now.Format("20060102")
 	timestamp := now.Format("150405")
-	logpath := fmt.Sprintf("%s/log", root_dir)
-	
+	logpath := fmt.Sprintf("%s/log", c.root_dir)
+
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
 		message := "No need for Sat, Sun."
-		lazyAppendFile(logpath, filename, timestamp + " : " + message)
+		lazyAppendFile(logpath, filename, timestamp+" : "+message)
 		fmt.Println(message)
 		pipe <- false
 		return
@@ -31,7 +38,7 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 	// Hamfisted block before 13:30 UTC and after 21:00 UTC.
 	if now.Before(tooEarly) || now.After(tooLate) {
 		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", now.Format("15:04:05"), early, late)
-		lazyAppendFile(logpath, filename, timestamp + " : " + message)
+		lazyAppendFile(logpath, filename, timestamp+" : "+message)
 		fmt.Println(message)
 		pipe <- false
 		return
@@ -39,10 +46,10 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 
 	limit := now.AddDate(0, 0, 22).Format("20060102")
 
-	options, stock, err := tda.GetOptions(symbol)
+	options, stock, err := c.adapter.GetOptions(symbol)
 	if err != nil {
 		message := fmt.Sprintf("Got err: %s", err)
-		lazyAppendFile(logpath, filename, timestamp + " : " + message)
+		lazyAppendFile(logpath, filename, timestamp+" : "+message)
 		fmt.Println(message)
 		pipe <- false
 		return
@@ -50,7 +57,7 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 
 	es, _ := funcs.Encode(&stock, funcs.StockEncodingOrder)
 
-	path := fmt.Sprintf("%s/data/%s/s", root_dir, stock.Symbol)
+	path := fmt.Sprintf("%s/data/%s/s", c.root_dir, stock.Symbol)
 	lazyAppendFile(path, filename, timestamp+","+es)
 
 	for _, option := range options {
@@ -61,7 +68,7 @@ func Collect(tda *tdameritrade.TDAmeritrade, symbol string, pipe chan bool) {
 		if err != nil {
 			fmt.Sprintf("Got err: %s", err)
 		}
-		path := fmt.Sprintf("%s/data/%s/o/%s/%s", root_dir, option.Underlying, option.Expiration, option.Type)
+		path := fmt.Sprintf("%s/data/%s/o/%s/%s", c.root_dir, option.Underlying, option.Expiration, option.Type)
 		lazyAppendFile(path, filename, timestamp+","+eo)
 	}
 
