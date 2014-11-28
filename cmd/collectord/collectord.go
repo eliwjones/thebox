@@ -33,7 +33,8 @@ func main() {
 
 	tda := tdameritrade.New(id, pass, sid, jsess)
 	if tda.JsessionID != jsess {
-		funcs.UpdateConfig(*root_dir+"/config", []string{id, pass, sid, tda.JsessionID})
+		lines[3] = tda.JsessionID
+		funcs.UpdateConfig(*root_dir+"/config", lines)
 	}
 
 	var c = collector.New(*root_dir, tda)
