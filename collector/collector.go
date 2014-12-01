@@ -10,16 +10,16 @@ import (
 	"time"
 )
 
-type collector struct {
+type Collector struct {
 	root_dir string
-	adapter  *tdameritrade.TDAmeritrade
+	Adapter  *tdameritrade.TDAmeritrade
 }
 
-func New(root_dir string, adapter *tdameritrade.TDAmeritrade) *collector {
-	return &collector{root_dir: root_dir, adapter: adapter}
+func New(root_dir string) *Collector {
+	return &Collector{root_dir: root_dir}
 }
 
-func (c *collector) Cleanup(date string) []error {
+func (c *Collector) Clean(date string) []error {
 	errors := []error{}
 
 	data_dir := c.root_dir + "/data"
@@ -50,7 +50,7 @@ func (c *collector) Cleanup(date string) []error {
 					errors = append(errors, err)
 					continue
 				}
-				cleanupOptionFile(cleanup_file, contents)
+				cleanOptionFile(cleanup_file, contents)
 			}
 		}
 		stock_file := data_dir + "/" + symbol + "/s/" + date
@@ -60,7 +60,7 @@ func (c *collector) Cleanup(date string) []error {
 			errors = append(errors, err)
 			continue
 		}
-		cleanupStockFile(stock_file, contents)
+		cleanStockFile(stock_file, contents)
 	}
 	if len(errors) == 0 {
 		errors = nil
@@ -68,19 +68,19 @@ func (c *collector) Cleanup(date string) []error {
 	return errors
 }
 
-func cleanupOptionFile(fileName string, contents []byte) {
+func cleanOptionFile(fileName string, contents []byte) {
 	suspectFileName := fileName + ".suspect"
 	cleanFileName := fileName + ".clean"
 	fmt.Printf("CLEANUP OPTIONS!!\n\t%s\n\t%s\n\t%s\n", fileName, suspectFileName, cleanFileName)
 }
 
-func cleanupStockFile(fileName string, contents []byte) {
+func cleanStockFile(fileName string, contents []byte) {
 	suspectFileName := fileName + ".suspect"
 	cleanFileName := fileName + ".clean"
 	fmt.Printf("CLEANUP STOCK!!\n\t%s\n\t%s\n\t%s\n", fileName, suspectFileName, cleanFileName)
 }
 
-func (c *collector) Collect(symbol string, pipe chan bool) {
+func (c *Collector) Collect(symbol string, pipe chan bool) {
 	now := time.Now().UTC()
 	filename := now.Format("20060102")
 	timestamp := now.Format("150405")
@@ -108,7 +108,7 @@ func (c *collector) Collect(symbol string, pipe chan bool) {
 
 	limit := now.AddDate(0, 0, 22).Format("20060102")
 
-	options, stock, err := c.adapter.GetOptions(symbol)
+	options, stock, err := c.Adapter.GetOptions(symbol)
 	if err != nil {
 		message := fmt.Sprintf("Got err: %s", err)
 		lazyAppendFile(logpath, filename, timestamp+" : "+message)

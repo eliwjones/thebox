@@ -1,28 +1,27 @@
 package collector
 
 import (
-	"github.com/eliwjones/thebox/adapter/tdameritrade"
-
 	"testing"
 )
 
 func Test_Collector_New(t *testing.T) {
-	c := New("/home/mrz/collector", &tdameritrade.TDAmeritrade{})
+	c := New("../cmd/collectord")
 
-	if c.root_dir != "/home/mrz/collector" {
-		t.Errorf("Expected: %s, Got: %s!", "/home/mrz/collector", c.root_dir)
+	if c.root_dir != "../cmd/collectord" {
+		t.Errorf("Expected: %s, Got: %s!", "../cmd/collectord", c.root_dir)
 	}
 }
 
 func Test_Collector_Cleanup(t *testing.T) {
-	c := New("/home/mrz/collector", &tdameritrade.TDAmeritrade{})
+	// Sub-optimal, but just looking above and over in collectord dir for a 'data' directory.
+	c := New("../cmd/collectord")
 
-	err := c.Cleanup("20141128")
+	err := c.Clean("20141201")
 	if err != nil {
 		t.Errorf("Err: %v", err)
 	}
 
-	err = c.Cleanup("20140000")
+	err = c.Clean("20140000")
 	if err == nil {
 		t.Errorf("Expected errors!")
 	}

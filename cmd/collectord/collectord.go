@@ -11,25 +11,47 @@ import (
 )
 
 var (
-	symbols  = []string{}
+	action   = flag.String("action", "", "'clean' or 'collect'?")
 	root_dir = flag.String("root_dir", "", "Where to find config file, 'log' and 'data' directories?")
+	yymmdd   = flag.String("yymmdd", "", "For '-action clean' need <YYMMDD> to clean.")
 )
 
 func init() {
 	flag.Parse()
 
 	if *root_dir == "" {
-		fmt.Printf("Please specify -root_dir.")
+		fmt.Printf("Please specify -root_dir.\n")
+		os.Exit(1)
+	}
+	if *action == "" {
+		fmt.Printf("Please specify -action. ('clean' or 'collect')\n")
+		os.Exit(1)
+	}
+	if *action == "clean" && *yymmdd == "" {
+		fmt.Printf("If performing 'clean' action, must specify -yymmdd.\n")
 		os.Exit(1)
 	}
 }
 
 func main() {
+	var c = collector.New(*root_dir)
+
+	switch *action {
+	case "collect":
+		collect(c)
+	case "clean":
+		c.Clean(*yymmdd)
+	}
+}
+
+func collect(c *collector.Collector) {
 	lines, _ := funcs.GetConfig(*root_dir + "/config")
 	id := lines[0]
 	pass := lines[1]
 	sid := lines[2]
 	jsess := lines[3]
+
+	symbols := []string{}
 	for _, symbol := range lines[4:] {
 		if symbol == "" {
 			continue
@@ -43,7 +65,7 @@ func main() {
 		funcs.UpdateConfig(*root_dir+"/config", lines)
 	}
 
-	var c = collector.New(*root_dir, tda)
+	c.Adapter = tda
 
 	pipe := make(chan bool, len(symbols))
 	for _, symbol := range symbols {
