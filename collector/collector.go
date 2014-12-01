@@ -19,8 +19,13 @@ func New(root_dir string) *Collector {
 	return &Collector{root_dir: root_dir}
 }
 
-func (c *Collector) Clean(date string) []error {
+func (c *Collector) Clean(date string) []error {	
 	errors := []error{}
+	
+	if date == "yesterday" {
+		// Get 'yymmdd' for yesterday.
+		date = time.Now().UTC().AddDate(0,0,-1).Format("20060102")
+	}
 
 	data_dir := c.root_dir + "/data"
 	d, _ := os.Open(data_dir)
