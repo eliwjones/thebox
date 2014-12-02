@@ -90,15 +90,15 @@ func cleanFile(fileName string, contents []byte, _type string) {
 	os.Rename(suspectFilename, suspectFilename+"."+randomExt)
 	os.Rename(cleanFilename, cleanFilename+"."+randomExt)
 
-	lines := bytes.Split(contents, []byte("\n"))
+	rows := bytes.Split(contents, []byte("\n"))
 	good := 0
 	bad := 0
-	for _, line := range lines {
-		rows := bytes.Split(line, []byte(","))
-		if len(rows) < 3 {
+	for _, row := range rows {
+		columns := bytes.Split(row, []byte(","))
+		if len(columns) < 3 {
 			continue
 		}
-		equity := string(bytes.Join(rows[1:], []byte(",")))
+		equity := string(bytes.Join(columns[1:], []byte(",")))
 		time2 := "000001"
 		if _type == "stock" {
 			s := structs.Stock{}
@@ -109,17 +109,17 @@ func cleanFile(fileName string, contents []byte, _type string) {
 			funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
 			time2 = o.Time
 		}
-		near, diff := isNear(string(rows[0]), time2)
+		near, diff := isNear(string(columns[0]), time2)
 		if near {
 			good += 1
-			lazyAppendFile(filepath.Dir(cleanFilename), filepath.Base(cleanFilename), string(line))
+			lazyAppendFile(filepath.Dir(cleanFilename), filepath.Base(cleanFilename), string(row))
 		} else {
 			if math.Abs(diff) < 60 {
-				//fmt.Printf("%s: %d, %s\n", string(rows[1]), int(diff), string(rows[0]))
+				//fmt.Printf("%s: %d, %s\n", string(columns[1]), int(diff), string(columns[0]))
 			}
 
 			bad += 1
-			lazyAppendFile(filepath.Dir(suspectFilename), filepath.Base(suspectFilename), string(line))
+			lazyAppendFile(filepath.Dir(suspectFilename), filepath.Base(suspectFilename), string(row))
 		}
 	}
 
