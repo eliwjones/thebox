@@ -3,10 +3,15 @@ package collector
 import (
 	"github.com/eliwjones/thebox/adapter/tdameritrade"
 	"github.com/eliwjones/thebox/util/funcs"
+	"github.com/eliwjones/thebox/util/structs"
 
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math"
+	"math/rand"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -19,12 +24,12 @@ func New(root_dir string) *Collector {
 	return &Collector{root_dir: root_dir}
 }
 
-func (c *Collector) Clean(date string) []error {	
+func (c *Collector) Clean(date string) []error {
 	errors := []error{}
-	
+
 	if date == "yesterday" {
 		// Get 'yymmdd' for yesterday.
-		date = time.Now().UTC().AddDate(0,0,-1).Format("20060102")
+		date = time.Now().UTC().AddDate(0, 0, -1).Format("20060102")
 	}
 
 	data_dir := c.root_dir + "/data"
@@ -46,6 +51,10 @@ func (c *Collector) Clean(date string) []error {
 				fmt.Printf("Bad Length for: %s!\n", expiration)
 				continue
 			}
+			if expiration < date {
+				fmt.Printf("No need to check exp: %s, date: %s\n", expiration, date)
+				continue
+			}
 			exp_dir := options_dir + "/" + expiration
 			for _, _type := range []string{"c", "p"} {
 				cleanup_file := exp_dir + "/" + _type + "/" + date
@@ -55,7 +64,7 @@ func (c *Collector) Clean(date string) []error {
 					errors = append(errors, err)
 					continue
 				}
-				cleanOptionFile(cleanup_file, contents)
+				cleanFile(cleanup_file, contents, "option")
 			}
 		}
 		stock_file := data_dir + "/" + symbol + "/s/" + date
@@ -65,7 +74,7 @@ func (c *Collector) Clean(date string) []error {
 			errors = append(errors, err)
 			continue
 		}
-		cleanStockFile(stock_file, contents)
+		cleanFile(stock_file, contents, "stock")
 	}
 	if len(errors) == 0 {
 		errors = nil
@@ -73,16 +82,52 @@ func (c *Collector) Clean(date string) []error {
 	return errors
 }
 
-func cleanOptionFile(fileName string, contents []byte) {
-	suspectFileName := fileName + ".suspect"
-	cleanFileName := fileName + ".clean"
-	fmt.Printf("CLEANUP OPTIONS!!\n\t%s\n\t%s\n\t%s\n", fileName, suspectFileName, cleanFileName)
-}
+func cleanFile(fileName string, contents []byte, _type string) {
+	suspectFilename := fileName + ".suspect"
+	cleanFilename := fileName + ".clean"
 
-func cleanStockFile(fileName string, contents []byte) {
-	suspectFileName := fileName + ".suspect"
-	cleanFileName := fileName + ".clean"
-	fmt.Printf("CLEANUP STOCK!!\n\t%s\n\t%s\n\t%s\n", fileName, suspectFileName, cleanFileName)
+	randomExt := fmt.Sprintf("%d", rand.Intn(100000))
+	os.Rename(suspectFilename, suspectFilename+"."+randomExt)
+	os.Rename(cleanFilename, cleanFilename+"."+randomExt)
+
+	lines := bytes.Split(contents, []byte("\n"))
+	good := 0
+	bad := 0
+	for _, line := range lines {
+		rows := bytes.Split(line, []byte(","))
+		if len(rows) < 3 {
+			continue
+		}
+		equity := string(bytes.Join(rows[1:], []byte(",")))
+		time2 := "000001"
+		if _type == "stock" {
+			s := structs.Stock{}
+			funcs.Decode(equity, &s, funcs.StockEncodingOrder)
+			time2 = s.Time
+		} else if _type == "option" {
+			o := structs.Option{}
+			funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
+			time2 = o.Time
+		}
+		near, diff := isNear(string(rows[0]), time2)
+		if near {
+			good += 1
+			lazyAppendFile(filepath.Dir(cleanFilename), filepath.Base(cleanFilename), string(line))
+		} else {
+			if math.Abs(diff) < 60 {
+				//fmt.Printf("%s: %d, %s\n", string(rows[1]), int(diff), string(rows[0]))
+			}
+
+			bad += 1
+			lazyAppendFile(filepath.Dir(suspectFilename), filepath.Base(suspectFilename), string(line))
+		}
+	}
+	//fmt.Printf("%s\n\tgood: %d, bad: %d\n", fileName, good, bad)
+
+	err := os.Rename(cleanFilename, fileName)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func (c *Collector) Collect(symbol string, pipe chan bool) {
@@ -140,6 +185,31 @@ func (c *Collector) Collect(symbol string, pipe chan bool) {
 	}
 
 	pipe <- true
+}
+
+func isNear(time1 string, time2 string) (bool, float64) {
+	now := time.Now().UTC()
+	datetime1, _ := time.Parse("20060102 150405", now.Format("20060102")+" "+time1)
+	datetime2, _ := time.Parse("20060102 150405", now.Format("20060102")+" "+time2)
+	secondsDiff := datetime1.Sub(datetime2).Seconds()
+
+	EST_diff := float64(18000) // -5 hours in seconds.
+	EDT_diff := float64(14400) // -4 hours in seconds.
+	padding := float64(45)     // Allow time to be within 45 seconds of current time.
+
+	distanceFromEST := math.Abs(secondsDiff - EST_diff)
+	distanceFromEDT := math.Abs(secondsDiff - EDT_diff)
+
+	minDiff := distanceFromEST
+	if minDiff > distanceFromEDT {
+		minDiff = distanceFromEDT
+	}
+
+	if minDiff <= padding {
+		return true, minDiff
+	}
+
+	return false, minDiff
 }
 
 func lazyAppendFile(folderName string, fileName string, data string) error {
