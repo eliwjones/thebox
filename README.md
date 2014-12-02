@@ -3,6 +3,34 @@ Vague Schematic
 
 ![Vague Schematic](https://docs.google.com/drawings/d/101-7Rp9DE7aJXBeks2XlcRYwwUHiWA6PHXaim5Iz6iQ/pub?w=1356&h=335)
 
+
+Functional Overview (vague sketch)
+==================================
+
+```
+a := tdameritrade.New(id, pass, sid, jsessionid)
+t := trader.New(a)
+
+b, _ := t.GetBalances()
+
+// Money needs concept of how often to push out Allotments to dispatcher "allotment" channel.
+//   also will need to serialize, deserialize that state.
+m := money.New(b["value"], b["cash"])
+
+data_dir := "/thebox/datadir"
+d := destiny.New(maxageOfPath, data_dir)
+
+// Connect m, d, t to their dispatchers.
+m.Subscribe("allotment", "destiny", d.amIn, false)  // destiny wants allotments from money.
+t.Subscribe("delta", "destiny", d.dIn, false)  // destiny wants deltas from trader.
+t.Subscribe("delta", "money", m.deltaIn, false)  // money wants deltas from trader.
+d.Subscribe("protoorder", "trader", t.pomIn, false)  // trader wants protoorders from destiny.
+
+// Send time.Now().UTC() to necessary components, followed by 'shutdown'
+//   OR create Pulsar, and simulate (would require using simulate.New() in place of tdameritrade).
+```
+
+
 Quick Start
 ===========
 
