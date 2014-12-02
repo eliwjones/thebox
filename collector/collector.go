@@ -122,11 +122,19 @@ func cleanFile(fileName string, contents []byte, _type string) {
 			lazyAppendFile(filepath.Dir(suspectFilename), filepath.Base(suspectFilename), string(line))
 		}
 	}
-	//fmt.Printf("%s\n\tgood: %d, bad: %d\n", fileName, good, bad)
 
-	err := os.Rename(cleanFilename, fileName)
-	if err != nil {
-		fmt.Println(err)
+	if good > 0 {
+		err := os.Rename(cleanFilename, fileName)
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		// Seems inefficient, but this will only happen for a week day with no valid data.
+		// Presumably, should happen only on Holidays?  Though, those should technically have one "valid" line.
+		err := os.Rename(fileName, suspectFilename)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
