@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -99,7 +100,7 @@ func cleanFile(fileName string, contents []byte, _type string) {
 			continue
 		}
 		equity := string(bytes.Join(columns[1:], []byte(",")))
-		time2 := "000001"
+		time2 := int64(1)
 		if _type == "stock" {
 			s := structs.Stock{}
 			funcs.Decode(equity, &s, funcs.StockEncodingOrder)
@@ -109,15 +110,15 @@ func cleanFile(fileName string, contents []byte, _type string) {
 			funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
 			time2 = o.Time
 		}
-		near, diff := isNear(string(columns[0]), time2)
+		time1, err := strconv.ParseFloat(string(columns[0]), 64)
+		if err != nil {
+			panic(err)
+		}
+		near, _ := isNear(int64(time1), time2)
 		if near {
 			good += 1
 			lazyAppendFile(filepath.Dir(cleanFilename), filepath.Base(cleanFilename), string(row))
 		} else {
-			if math.Abs(diff) < 60 {
-				//fmt.Printf("%s: %d, %s\n", string(columns[1]), int(diff), string(columns[0]))
-			}
-
 			bad += 1
 			lazyAppendFile(filepath.Dir(suspectFilename), filepath.Base(suspectFilename), string(row))
 		}
@@ -141,7 +142,7 @@ func cleanFile(fileName string, contents []byte, _type string) {
 func (c *Collector) Collect(symbol string, pipe chan bool) {
 	now := time.Now().UTC()
 	filename := now.Format("20060102")
-	timestamp := now.Format("150405")
+	timestamp := fmt.Sprintf("%d", now.Unix()-now.Truncate(24*time.Hour).Unix())
 	logpath := fmt.Sprintf("%s/log", c.root_dir)
 
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
@@ -195,11 +196,90 @@ func (c *Collector) Collect(symbol string, pipe chan bool) {
 	pipe <- true
 }
 
-func isNear(time1 string, time2 string) (bool, float64) {
-	now := time.Now().UTC()
-	datetime1, _ := time.Parse("20060102 150405", now.Format("20060102")+" "+time1)
-	datetime2, _ := time.Parse("20060102 150405", now.Format("20060102")+" "+time2)
-	secondsDiff := datetime1.Sub(datetime2).Seconds()
+func (c *Collector) Migrate(date string) []error {
+	errors := []error{}
+
+	data_dir := c.root_dir + "/data"
+	d, _ := os.Open(data_dir)
+	defer d.Close()
+	symbols, _ := d.Readdirnames(-1)
+	for _, symbol := range symbols {
+		options_dir := data_dir + "/" + symbol + "/o"
+		e, err := os.Open(options_dir)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		defer e.Close()
+		expirations, _ := e.Readdirnames(-1)
+		for _, expiration := range expirations {
+			if len(expiration) != len("20140101") {
+				fmt.Printf("Bad Length for: %s!\n", expiration)
+				continue
+			}
+			exp_dir := options_dir + "/" + expiration
+			for _, _type := range []string{"c", "p"} {
+				cleanup_file := exp_dir + "/" + _type + "/" + date
+				contents, err := ioutil.ReadFile(cleanup_file)
+				if err != nil {
+					errors = append(errors, err)
+					continue
+				}
+				migrateFile(cleanup_file, contents, "option")
+			}
+		}
+		stock_file := data_dir + "/" + symbol + "/s/" + date
+		contents, err := ioutil.ReadFile(stock_file)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		migrateFile(stock_file, contents, "stock")
+	}
+	if len(errors) == 0 {
+		errors = nil
+	}
+	return errors
+}
+
+func migrateFile(fileName string, contents []byte, _type string) {
+	migratedFilename := fileName + ".migrated"
+
+	randomExt := fmt.Sprintf("%d", rand.Intn(100000))
+	os.Rename(migratedFilename, migratedFilename+"."+randomExt)
+
+	rows := bytes.Split(contents, []byte("\n"))
+	for _, row := range rows {
+		columns := bytes.Split(row, []byte(","))
+		if len(columns) < 3 {
+			continue
+		}
+		// Convert column[0] to Seconds
+		t, _ := time.Parse("150405", string(columns[0]))
+		converted_time := fmt.Sprintf("%d", t.Unix()-t.Truncate(24*time.Hour).Unix())
+		columns[0] = []byte(converted_time)
+		if _type == "stock" {
+			t, _ = time.Parse("150405", string(columns[2]))
+			converted_time = fmt.Sprintf("%d", t.Unix()-t.Truncate(24*time.Hour).Unix())
+			columns[2] = []byte(converted_time)
+		} else if _type == "option" {
+			t, _ = time.Parse("150405", string(columns[4]))
+			converted_time = fmt.Sprintf("%d", t.Unix()-t.Truncate(24*time.Hour).Unix())
+			columns[4] = []byte(converted_time)
+		}
+		row = bytes.Join(columns, []byte(","))
+		lazyAppendFile(filepath.Dir(migratedFilename), filepath.Base(migratedFilename), string(row))
+	}
+
+	//err := os.Rename(fileName, fileName + ".original")
+	err := os.Rename(migratedFilename, fileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func isNear(time1 int64, time2 int64) (bool, float64) {
+	secondsDiff := float64(time1) - float64(time2)
 
 	EST_diff := float64(18000) // -5 hours in seconds.
 	EDT_diff := float64(14400) // -4 hours in seconds.

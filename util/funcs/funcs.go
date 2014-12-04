@@ -33,6 +33,12 @@ func Decode(eo string, c interface{}, encodingOrder []string) error {
 				return err
 			}
 			f.SetInt(val)
+		case reflect.Int64:
+			val, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return err
+			}
+			f.SetInt(int64(val))
 		case reflect.Float64:
 			val, err := strconv.ParseFloat(v, 64)
 			if err != nil {

@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	action   = flag.String("action", "", "'clean' or 'collect'?")
+	action   = flag.String("action", "", "'clean', 'collect' or 'migrate'?")
 	root_dir = flag.String("root_dir", "", "Where to find config file, 'log' and 'data' directories?")
 	yymmdd   = flag.String("yymmdd", "", "For '-action clean' need <YYMMDD> to clean.")
 )
@@ -27,8 +27,8 @@ func init() {
 		fmt.Printf("Please specify -action. ('clean' or 'collect')\n")
 		os.Exit(1)
 	}
-	if *action == "clean" && *yymmdd == "" {
-		fmt.Printf("If performing 'clean' action, must specify -yymmdd.\n")
+	if (*action == "clean" || *action == "migrate") && *yymmdd == "" {
+		fmt.Printf("If performing '%s' action, must specify -yymmdd.\n", *action)
 		os.Exit(1)
 	}
 }
@@ -41,6 +41,11 @@ func main() {
 		collect(c)
 	case "clean":
 		c.Clean(*yymmdd)
+	case "migrate":
+		err := c.Migrate(*yymmdd)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
