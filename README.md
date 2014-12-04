@@ -28,6 +28,15 @@ d.Subscribe("protoorder", "trader", t.pomIn, false)  // trader wants protoorders
 
 // Send time.Now().UTC() to necessary components, followed by 'shutdown'
 //   OR create Pulsar, and simulate (would require using simulate.New() in place of tdameritrade).
+p := pulsar.New(data_dir + "/timestamps/now","0000000000","9999999999")
+p.Subscribe("money", m.pulses, m.pulsarReply)
+p.Subscribe("destiny", d.pulses, d.pulsarReply)
+p.Subscribe("trader", t.pulses, t.pulsarReply)
+
+p.Start()
+
+// System will exit once pulsar is done.
+// For simulation, simulate adapter will need to subscribe to pulses as well.
 ```
 
 
