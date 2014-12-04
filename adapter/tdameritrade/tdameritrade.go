@@ -249,7 +249,10 @@ func containerToOption(container OptionContainer) structs.Option {
 func underlyingToStock(underlying Underlying) structs.Stock {
 	stock := structs.Stock{}
 	stock.Symbol = underlying.Symbol
-	stock.Time = strings.Replace(underlying.Time, ":", "", -1)
+
+	// Setting stock.Time to number of seconds in HH:MM:SS stamp.
+	t, _ := time.Parse("15:04:05", underlying.Time)
+	stock.Time = t.Unix() - t.Truncate(24*time.Hour).Unix()
 
 	// Sometimes volume comes back in Exponential format...
 	parsed, _ := strconv.ParseFloat(underlying.Volume, 64)

@@ -31,7 +31,7 @@ type Option struct {
 	Expiration string
 	Strike     int
 	Symbol     string
-	Time       string
+	Time       int64
 	Type       string
 
 	Ask          int
@@ -94,7 +94,7 @@ type Stock struct {
 	Last   int
 	Low    int
 	Symbol string
-	Time   string // For now, just a wierd HH:MM string since thats what TDA returns.
+	Time   int64 // Seconds in HH:MM:SS.
 	Volume int
 }
 
