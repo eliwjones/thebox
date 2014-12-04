@@ -3,39 +3,72 @@ package pulsar
 import (
 	"github.com/eliwjones/thebox/dispatcher"
 
-	"time"
+	"os"
+	"sort"
+	"strconv"
 )
 
-var periods map[int]time.Duration = map[int]time.Duration{
-	1:     1 * time.Second,
-	1000:  1 * time.Millisecond,
-	5000:  200 * time.Microsecond, // Occassionally drops tics.
-	10000: 100 * time.Microsecond} // Seems to be max before dropping "too many" tics.
-
 type Pulsar struct {
-	now        int64                  // "Milliseconds" since Epoch.
-	period     time.Duration          // What is my current duration?
 	dispatcher *dispatcher.Dispatcher // Where to send 'pulses'
+	pulses     []int64                // tape of pulses to send out.
+	replies    map[string]chan int64  // To synchronize, await replies.
 }
 
-func New(startms int64, speedup int) *Pulsar {
+func New(datadir string, start string, stop string) *Pulsar {
 	p := &Pulsar{}
-	p.now = startms
-	p.period = periods[speedup]
 	p.dispatcher = dispatcher.New(10)
-	ticker := time.NewTicker(p.period)
-
-	go func() {
-		for _ = range ticker.C {
-			p.dispatcher.Send(p.now, "pulser")
-			p.now += 1000
-		}
-
-	}()
+	p.pulses = loadPulses(datadir, start, stop)
+	p.replies = map[string]chan int64{}
 
 	return p
 }
 
-func (p *Pulsar) Subscribe(whoami string, subscriber chan interface{}) {
+func (p *Pulsar) Start() {
+	for _, pulse := range p.pulses {
+		p.dispatcher.Send(pulse, "pulser")
+		// Feels wrong, but don't feel like rolling await-reply functionality into Dispatcher.
+		for _, reply := range p.replies {
+			<-reply
+		}
+
+	}
+	// Send -1 as shutdown signal.
+	p.dispatcher.Send(int64(-1), "pulser")
+	for _, reply := range p.replies {
+		<-reply
+	}
+}
+
+func (p *Pulsar) Subscribe(whoami string, subscriber chan interface{}, reply chan int64) {
 	p.dispatcher.Subscribe("pulser", whoami, subscriber, true)
+	p.replies[whoami] = reply
+}
+
+func loadPulses(datadir string, start string, stop string) []int64 {
+	// Inefficient, but to the point.
+	// Panic-y since have no desire to run if pulses are suspect.
+	d, err := os.Open(datadir)
+	if err != nil {
+		panic(err)
+	}
+	ps, err := d.Readdirnames(-1)
+	if err != nil {
+		panic(err)
+	}
+	sort.Strings(ps)
+	pulses := []int64{}
+	for _, p := range ps {
+		if p > stop {
+			continue
+		}
+		if p < start {
+			continue
+		}
+		pulse, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			panic(err)
+		}
+		pulses = append(pulses, int64(pulse))
+	}
+	return pulses
 }
