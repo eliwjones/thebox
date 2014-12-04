@@ -21,6 +21,8 @@ const (
 
 // Lazy Kitchen Sink Struct.
 type TDAResponse struct {
+	Error string `xml:"error"`
+
 	SessionId string `xml:"xml-log-in>session-id"`
 	AccountId string `xml:"xml-log-in>associated-account-id"`
 
@@ -125,6 +127,9 @@ func (s *TDAmeritrade) Connect(id string, auth string, jsessionid string) (strin
 	if err != nil {
 		return "", err
 	}
+	if result.Error != "" {
+		return "", fmt.Errorf(result.Error)
+	}
 	sessionID := result.SessionId
 	if sessionID == "" {
 		return "", errors.New(string(body))
@@ -142,6 +147,9 @@ func (s *TDAmeritrade) GetBalances() (map[string]int, error) {
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
 		return map[string]int{"cash": s.Cash, "value": s.Value}, err
+	}
+	if result.Error != "" {
+		return map[string]int{"cash": s.Cash, "value": s.Value}, fmt.Errorf(result.Error)
 	}
 	cash, err := strconv.ParseFloat(result.AvailableFunds, 64)
 	if err != nil {
@@ -168,6 +176,9 @@ func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, structs.Stoc
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
 		return options, stock, err
+	}
+	if result.Error != "" {
+		return options, stock, fmt.Errorf(result.Error)
 	}
 
 	stock = underlyingToStock(result.Underlying)
@@ -218,6 +229,9 @@ func (s *TDAmeritrade) GetPositions() (map[string]structs.Position, error) {
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
 		return nil, err
+	}
+	if result.Error != "" {
+		return nil, fmt.Errorf(result.Error)
 	}
 	return s.Positions, nil
 }
