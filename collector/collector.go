@@ -86,6 +86,28 @@ func (c *Collector) Collect(symbol string, reply chan bool) {
 	reply <- true
 }
 
+func isNear(time1 int64, time2 int64) (bool, float64) {
+	secondsDiff := float64(time1) - float64(time2)
+
+	EST_diff := float64(18000) // -5 hours in seconds.
+	EDT_diff := float64(14400) // -4 hours in seconds.
+	padding := float64(45)     // Allow time to be within 45 seconds of current time.
+
+	distanceFromEST := math.Abs(secondsDiff - EST_diff)
+	distanceFromEDT := math.Abs(secondsDiff - EDT_diff)
+
+	minDiff := distanceFromEST
+	if minDiff > distanceFromEDT {
+		minDiff = distanceFromEDT
+	}
+
+	if minDiff <= padding {
+		return true, minDiff
+	}
+
+	return false, minDiff
+}
+
 // These are more like helper functions and not part of Collector.  Thus, detaching from main struct.
 func Clean(root_dir string, date string) []error {
 	errors := []error{}
@@ -281,28 +303,6 @@ func migrateFile(fileName string, contents []byte, _type string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-}
-
-func isNear(time1 int64, time2 int64) (bool, float64) {
-	secondsDiff := float64(time1) - float64(time2)
-
-	EST_diff := float64(18000) // -5 hours in seconds.
-	EDT_diff := float64(14400) // -4 hours in seconds.
-	padding := float64(45)     // Allow time to be within 45 seconds of current time.
-
-	distanceFromEST := math.Abs(secondsDiff - EST_diff)
-	distanceFromEDT := math.Abs(secondsDiff - EDT_diff)
-
-	minDiff := distanceFromEST
-	if minDiff > distanceFromEDT {
-		minDiff = distanceFromEDT
-	}
-
-	if minDiff <= padding {
-		return true, minDiff
-	}
-
-	return false, minDiff
 }
 
 func lazyAppendFile(folderName string, fileName string, data string) error {
