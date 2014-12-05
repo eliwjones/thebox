@@ -72,14 +72,14 @@ func collect(c *collector.Collector) {
 
 	c.Adapter = tda
 
-	pipe := make(chan bool, len(symbols))
+	reply := make(chan bool, len(symbols))
 	for _, symbol := range symbols {
 		fmt.Printf("Getting: %s\n", symbol)
-		go c.Collect(symbol, pipe)
+		go c.Collect(symbol, reply)
 	}
 
 	for _, _ = range symbols {
-		result := <-pipe
+		result := <-reply
 		if !result {
 			fmt.Println("Received err result.")
 			continue

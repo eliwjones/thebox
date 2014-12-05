@@ -18,14 +18,76 @@ import (
 
 type Collector struct {
 	root_dir string
+	pipe     chan interface{}
 	Adapter  *tdameritrade.TDAmeritrade
 }
 
 func New(root_dir string) *Collector {
-	return &Collector{root_dir: root_dir}
+	return &Collector{root_dir: root_dir, pipe: make(chan interface{}, 10000)}
 }
 
-func (c *Collector) Clean(date string) []error {
+func (c *Collector) Collect(symbol string, reply chan bool) {
+	now := time.Now().UTC()
+	filename := now.Format("20060102")
+	timestamp := fmt.Sprintf("%d", now.Unix()-now.Truncate(24*time.Hour).Unix())
+	logpath := fmt.Sprintf("%s/log", c.root_dir)
+
+	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
+		message := "No need for Sat, Sun."
+		lazyAppendFile(logpath, filename, timestamp+" : "+message)
+		fmt.Println(message)
+		reply <- false
+		return
+	}
+	early := "13:28"
+	late := "21:02"
+	tooEarly, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+early)
+	tooLate, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+late)
+	// Hamfisted block before 13:30 UTC and after 21:00 UTC.
+	if now.Before(tooEarly) || now.After(tooLate) {
+		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", now.Format("15:04:05"), early, late)
+		lazyAppendFile(logpath, filename, timestamp+" : "+message)
+		fmt.Println(message)
+		reply <- false
+		return
+	}
+
+	limit := now.AddDate(0, 0, 22).Format("20060102")
+
+	options, stock, err := c.Adapter.GetOptions(symbol)
+	if err != nil {
+		message := fmt.Sprintf("Got err: %s", err)
+		lazyAppendFile(logpath, filename, timestamp+" : "+message)
+		fmt.Println(message)
+		reply <- false
+		return
+	}
+
+	// Send es and eo down pipe. (prepend timestamp + ",o|s,"
+	// Will have functions waiting for messages to process?
+
+	es, _ := funcs.Encode(&stock, funcs.StockEncodingOrder)
+
+	path := fmt.Sprintf("%s/data/%s/s", c.root_dir, stock.Symbol)
+	lazyAppendFile(path, filename, timestamp+","+es)
+
+	for _, option := range options {
+		if option.Expiration > limit {
+			continue
+		}
+		eo, err := funcs.Encode(&option, funcs.OptionEncodingOrder)
+		if err != nil {
+			fmt.Sprintf("Got err: %s", err)
+		}
+		path := fmt.Sprintf("%s/data/%s/o/%s/%s", c.root_dir, option.Underlying, option.Expiration, option.Type)
+		lazyAppendFile(path, filename, timestamp+","+eo)
+	}
+
+	reply <- true
+}
+
+// These are more like helper functions and not part of Collector.  Thus, detaching from main struct.
+func Clean(root_dir string, date string) []error {
 	errors := []error{}
 
 	if date == "yesterday" {
@@ -33,7 +95,7 @@ func (c *Collector) Clean(date string) []error {
 		date = time.Now().UTC().AddDate(0, 0, -1).Format("20060102")
 	}
 
-	data_dir := c.root_dir + "/data"
+	data_dir := root_dir + "/data"
 	d, _ := os.Open(data_dir)
 	defer d.Close()
 	symbols, _ := d.Readdirnames(-1)
@@ -139,67 +201,10 @@ func cleanFile(fileName string, contents []byte, _type string) {
 	}
 }
 
-func (c *Collector) Collect(symbol string, pipe chan bool) {
-	now := time.Now().UTC()
-	filename := now.Format("20060102")
-	timestamp := fmt.Sprintf("%d", now.Unix()-now.Truncate(24*time.Hour).Unix())
-	logpath := fmt.Sprintf("%s/log", c.root_dir)
-
-	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
-		message := "No need for Sat, Sun."
-		lazyAppendFile(logpath, filename, timestamp+" : "+message)
-		fmt.Println(message)
-		pipe <- false
-		return
-	}
-	early := "13:28"
-	late := "21:02"
-	tooEarly, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+early)
-	tooLate, _ := time.Parse("20060102 15:04", now.Format("20060102")+" "+late)
-	// Hamfisted block before 13:30 UTC and after 21:00 UTC.
-	if now.Before(tooEarly) || now.After(tooLate) {
-		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", now.Format("15:04:05"), early, late)
-		lazyAppendFile(logpath, filename, timestamp+" : "+message)
-		fmt.Println(message)
-		pipe <- false
-		return
-	}
-
-	limit := now.AddDate(0, 0, 22).Format("20060102")
-
-	options, stock, err := c.Adapter.GetOptions(symbol)
-	if err != nil {
-		message := fmt.Sprintf("Got err: %s", err)
-		lazyAppendFile(logpath, filename, timestamp+" : "+message)
-		fmt.Println(message)
-		pipe <- false
-		return
-	}
-
-	es, _ := funcs.Encode(&stock, funcs.StockEncodingOrder)
-
-	path := fmt.Sprintf("%s/data/%s/s", c.root_dir, stock.Symbol)
-	lazyAppendFile(path, filename, timestamp+","+es)
-
-	for _, option := range options {
-		if option.Expiration > limit {
-			continue
-		}
-		eo, err := funcs.Encode(&option, funcs.OptionEncodingOrder)
-		if err != nil {
-			fmt.Sprintf("Got err: %s", err)
-		}
-		path := fmt.Sprintf("%s/data/%s/o/%s/%s", c.root_dir, option.Underlying, option.Expiration, option.Type)
-		lazyAppendFile(path, filename, timestamp+","+eo)
-	}
-
-	pipe <- true
-}
-
-func (c *Collector) Migrate(date string) []error {
+func Migrate(root_dir string, date string) []error {
 	errors := []error{}
 
-	data_dir := c.root_dir + "/data"
+	data_dir := root_dir + "/data"
 	d, _ := os.Open(data_dir)
 	defer d.Close()
 	symbols, _ := d.Readdirnames(-1)
