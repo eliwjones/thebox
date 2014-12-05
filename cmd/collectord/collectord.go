@@ -40,9 +40,9 @@ func main() {
 	case "collect":
 		collect(c)
 	case "clean":
-		c.Clean(*yymmdd)
+		collector.Clean(*root_dir, *yymmdd)
 	case "migrate":
-		err := c.Migrate(*yymmdd)
+		err := collector.Migrate(*root_dir, *yymmdd)
 		if err != nil {
 			fmt.Println(err)
 		}
