@@ -8,7 +8,7 @@ import (
 )
 
 func Test_EncodeDecodeOption(t *testing.T) {
-	o := structs.Option{Expiration: "20150101", Strike: 10000, Symbol: "20150101AA100PUT", Time: "12:00", Type: "p",
+	o := structs.Option{Expiration: "20150101", Strike: 10000, Symbol: "20150101AA100PUT", Time: int64(1000), Type: "p",
 		Ask: 200, Bid: 100, IV: 1.111, Last: 150, OpenInterest: 1000, Underlying: "AA", Volume: 100}
 
 	eo, err := Encode(&o, OptionEncodingOrder)
@@ -26,6 +26,27 @@ func Test_EncodeDecodeOption(t *testing.T) {
 
 	if o != o2 {
 		t.Errorf("\n%v\n\nshould equal\n\n%v", o, o2)
+	}
+}
+
+func Test_EncodeDecodeStock(t *testing.T) {
+	s := structs.Stock{Symbol: "GOOG", Time: int64(1000), Ask: 200, Bid: 100, Last: 150, High: 300, Low: 50, Volume: 100}
+
+	es, err := Encode(&s, StockEncodingOrder)
+
+	if err != nil {
+		t.Errorf("EncodeOption err: %s!", err)
+	}
+
+	s2 := structs.Stock{}
+	err = Decode(es, &s2, StockEncodingOrder)
+
+	if err != nil {
+		t.Errorf("DecodeOption err: %s!", err)
+	}
+
+	if s != s2 {
+		t.Errorf("\n%v\n\nshould equal\n\n%v", s, s2)
 	}
 }
 

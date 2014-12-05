@@ -22,6 +22,9 @@ func Decode(eo string, c interface{}, encodingOrder []string) error {
 	r := reflect.ValueOf(c).Elem()
 
 	s := strings.Split(eo, ",")
+	if len(s) != len(encodingOrder) {
+		return fmt.Errorf("Expected %d Items.  Got %d Items.", len(encodingOrder), len(s))
+	}
 	for idx, v := range s {
 		f := r.FieldByName(encodingOrder[idx])
 		switch f.Type().Kind() {
@@ -61,12 +64,15 @@ func Encode(c interface{}, encodingOrder []string) (string, error) {
 		switch v.Type().Kind() {
 		case reflect.String:
 			eo += "," + v.String()
-		case reflect.Int:
+		case reflect.Int, reflect.Int64:
 			eo += "," + fmt.Sprintf("%d", v.Int())
 		case reflect.Float64:
 			eo += "," + fmt.Sprintf("%.5f", v.Float())
 
 		}
+	}
+	if strings.Count(eo[1:], ",")+1 != len(encodingOrder) {
+		return eo[1:], fmt.Errorf("Expected %d Items.  Got %d Items.", len(encodingOrder), strings.Count(eo[1:], ",")+1)
 	}
 	return eo[1:], nil
 }
