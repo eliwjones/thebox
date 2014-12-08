@@ -3,6 +3,7 @@ package funcs
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -84,6 +85,44 @@ func GetConfig(path string) ([]string, error) {
 	}
 	lines := strings.Split(string(b), "\n")
 	return lines, nil
+}
+
+func LazyAppendFile(folderName string, fileName string, data string) error {
+	f, err := os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	if err != nil {
+		os.MkdirAll(folderName, 0777)
+		f, err = os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	}
+	if err != nil {
+		fmt.Printf("[lazyAppendFile] Could not Open File: %s\nErr: %s\n", folderName+"/"+fileName, err)
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(data + "\n")
+	if err != nil {
+		fmt.Printf("[lazyAppendFile] Could not AppendFile: %s\nErr: %s\n", folderName+"/"+fileName, err)
+		return err
+	}
+
+	return nil
+}
+
+func LazyWriteFile(folderName string, fileName string, data []byte) error {
+	err := ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
+	if err != nil {
+		os.MkdirAll(folderName, 0777)
+		err = ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
+	}
+	if err != nil {
+		fmt.Printf("[LazyWriteFile] Could not WriteFile: %s\nErr: %s\n", folderName+"/"+fileName, err)
+	}
+	return err
+}
+
+func ClockTimeInSeconds(hhmmss string) int64 {
+	t, _ := time.Parse("150405", hhmmss)
+	return t.Unix() - t.Truncate(24*time.Hour).Unix()
 }
 
 func UpdateConfig(path string, lines []string) error {

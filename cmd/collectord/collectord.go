@@ -12,6 +12,7 @@ import (
 
 var (
 	action   = flag.String("action", "", "'clean', 'collect' or 'migrate'?")
+	reckless = flag.Bool("reckless", false, "Request and save data ignoring trading time and day ranges.")
 	root_dir = flag.String("root_dir", "", "Where to find config file, 'log' and 'data' directories?")
 	yymmdd   = flag.String("yymmdd", "", "For '-action clean' need <YYMMDD> to clean.")
 )
@@ -34,10 +35,10 @@ func init() {
 }
 
 func main() {
-	var c = collector.New(*root_dir)
-
 	switch *action {
 	case "collect":
+		c := collector.New(*root_dir)
+		c.Reckless = *reckless
 		collect(c)
 	case "clean":
 		collector.Clean(*root_dir, *yymmdd)
@@ -56,12 +57,14 @@ func collect(c *collector.Collector) {
 	sid := lines[2]
 	jsess := lines[3]
 
-	symbols := []string{}
 	for _, symbol := range lines[4:] {
 		if symbol == "" {
 			continue
 		}
-		symbols = append(symbols, symbol)
+		err := c.Collect(symbol)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	tda := tdameritrade.New(id, pass, sid, jsess)
@@ -72,17 +75,5 @@ func collect(c *collector.Collector) {
 
 	c.Adapter = tda
 
-	reply := make(chan bool, len(symbols))
-	for _, symbol := range symbols {
-		fmt.Printf("Getting: %s\n", symbol)
-		go c.Collect(symbol, reply)
-	}
-
-	for _, _ = range symbols {
-		result := <-reply
-		if !result {
-			fmt.Println("Received err result.")
-			continue
-		}
-	}
+	c.RunOnce()
 }
