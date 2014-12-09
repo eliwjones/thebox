@@ -70,7 +70,7 @@ func Test_Collector_maybeCycleTargets(t *testing.T) {
 }
 
 func Test_Collector_isNear(t *testing.T) {
-	padding := int64(45)
+	padding := 45
 
 	// EST Testing.
 	time1 := funcs.ClockTimeInSeconds("204801")
@@ -89,7 +89,7 @@ func Test_Collector_isNear(t *testing.T) {
 	if near {
 		t.Errorf("Did not expect near result for: %s, %s", time1, time2)
 	}
-	if diff != -50 {
+	if diff != 50 {
 		t.Errorf("Expected 50, Got: %d", int(diff))
 	}
 
@@ -100,7 +100,7 @@ func Test_Collector_isNear(t *testing.T) {
 	if !near {
 		t.Errorf("Expected near result for: %s, %s", time1, time2)
 	}
-	if diff != -20 {
+	if diff != 20 {
 		t.Errorf("Expected 20, Got: %d", int(diff))
 	}
 
@@ -110,7 +110,7 @@ func Test_Collector_isNear(t *testing.T) {
 	if near {
 		t.Errorf("Did not expect near result for: %s, %s", time1, time2)
 	}
-	if diff != -50 {
+	if diff != 50 {
 		t.Errorf("Expected 50, Got: %d", int(diff))
 	}
 }

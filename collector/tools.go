@@ -110,7 +110,7 @@ func cleanFile(fileName string, contents []byte, _type string) {
 		if err != nil {
 			panic(err)
 		}
-		near, _ := isNear(int64(time1), time2, int64(45))
+		near, _ := isNear(int64(time1), time2, 45)
 		if near {
 			good += 1
 			funcs.LazyAppendFile(filepath.Dir(cleanFilename), filepath.Base(cleanFilename), string(row))

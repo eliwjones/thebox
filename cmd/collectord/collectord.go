@@ -14,6 +14,8 @@ var (
 	action   = flag.String("action", "", "'clean', 'collect' or 'migrate'?")
 	reckless = flag.Bool("reckless", false, "Request and save data ignoring trading time and day ranges.")
 	root_dir = flag.String("root_dir", "", "Where to find config file, 'log' and 'data' directories?")
+	start    = flag.String("start", "", "Starting Timestamp")
+	end      = flag.String("end", "", "Ending Timestamp")
 	yymmdd   = flag.String("yymmdd", "", "For '-action clean' need <YYMMDD> to clean.")
 )
 
@@ -25,21 +27,28 @@ func init() {
 		os.Exit(1)
 	}
 	if *action == "" {
-		fmt.Printf("Please specify -action. ('clean' or 'collect')\n")
+		fmt.Printf("Please specify -action. ('collect', 'process_stream', 'clean' or 'migrate')\n")
 		os.Exit(1)
 	}
 	if (*action == "clean" || *action == "migrate") && *yymmdd == "" {
 		fmt.Printf("If performing '%s' action, must specify -yymmdd.\n", *action)
 		os.Exit(1)
 	}
+	if *action == "process_stream" && (*start == "" || *end == "") {
+		fmt.Printf("'process_stream' requires -start, and -end.\n")
+		os.Exit(1)
+	}
 }
 
 func main() {
+	c := collector.New(*root_dir)
+	c.Reckless = *reckless
+
 	switch *action {
 	case "collect":
-		c := collector.New(*root_dir)
-		c.Reckless = *reckless
 		collect(c)
+	case "process_stream":
+		c.ProcessStream(*start, *end)
 	case "clean":
 		collector.Clean(*root_dir, *yymmdd)
 	case "migrate":

@@ -5,10 +5,13 @@ import (
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
 
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -93,27 +96,57 @@ func (c *Collector) RunOnce() {
 }
 
 func (c *Collector) ProcessStream(start string, end string) {
-	// Get list of /log files for day range.
 	sorted_days := []string{}
-	for _, day := range sorted_days {
-		// load log file.
-		yymmdd := "day_ts to yymmdd" + day
-		current_timestamp := int64(-1)
-		lines := []string{}
+	current := start
+	t, err := time.Parse("20060102", current)
+	if err != nil {
+		panic(err)
+	}
+	for {
+		if current > end {
+			break
+		}
+		sorted_days = append(sorted_days, current)
+		for {
+			// Seek to next M-F.  Please refactor to be less ugly.
+			t = t.AddDate(0, 0, 1)
+			if t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+				continue
+			}
+			break
+		}
+		current = t.Format("20060102")
+	}
+
+	current_timestamp := int64(-1)
+	for _, yymmdd := range sorted_days {
+		log_data, err := ioutil.ReadFile(c.logdir + "/" + yymmdd)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		lines := bytes.Split(log_data, []byte("\n"))
 		for _, line := range lines {
-			log_timestamp, _ := c.updateTarget(yymmdd, line)
+
+			log_timestamp := c.updateTarget(yymmdd, string(line))
 			if current_timestamp == -1 {
 				current_timestamp = log_timestamp
 			}
 			if log_timestamp == current_timestamp {
 				continue
 			}
+			if log_timestamp == -1 {
+				continue
+			}
 			// log_timestamp has surpassed current_timestamp.
 			c.maybeCycleTargets(log_timestamp)
 
 			current_timestamp = log_timestamp
+			fmt.Printf("[current_timestamp] %d\n", current_timestamp)
 		}
 	}
+	c.dumpTargets()
 
 }
 
@@ -218,27 +251,32 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 
 func (c *Collector) maybeCycleTargets(current_timestamp int64) {
 	for symbol, _ := range c.targets["current"] {
-		distance := current_timestamp - c.targets["current"][symbol].Timestamp
-		if distance < 0 {
-			// Target is in the future, do not persist.
+		interval := getTenMinTimestamp(current_timestamp)
+		if c.targets["current"][symbol].Timestamp == 0 {
+			// Nothing to promote.
+			continue
+		}
+		if interval == c.targets["current"][symbol].Timestamp {
+			// We are in the target interval, no need to cycle.
 			continue
 		}
 
 		c.promoteTarget(c.targets["current"][symbol])
 
 		// cycle "next" -> "current"
-		c.targets["current"][symbol] = c.targets["next"][symbol]
 
-		// initialize "next" for 10 minutes in the future.
-		next_timestamp := c.targets["next"][symbol].Timestamp + 10*60
-		c.targets["next"][symbol] = target{Timestamp: next_timestamp}
+		c.targets["current"][symbol] = c.targets["next"][symbol]
+		c.targets["next"][symbol] = target{}
 	}
 }
 
 func (c *Collector) promoteTarget(t target) {
+	fmt.Println("************************************")
+	fmt.Println("Promoting Target!")
+	fmt.Printf("timestamp: %d\nsymbol: %s\n", t.Timestamp, t.Stock.Symbol)
 	// Send target to /live/data/yymmdd_seconds.<>
 	// Encode all Stock and Option data and lazyAppendFile() gigantic multiline blob.
-	
+
 	// touch appropriate /live/timestamp/<ts> filename.
 }
 
@@ -264,87 +302,147 @@ func (c *Collector) SaveToLog(message interface{}) (string, string) {
 	return filename, line
 }
 
-func (c *Collector) updateTarget(yymmdd string, line string) (int64, string) {
-	// Update "current" and possibly "next" targets as needed.
-	// return fully constructed timestamp for log line.
+func (c *Collector) updateTarget(yymmdd string, line string) int64 {
+	t, _ := time.Parse("20060102", yymmdd)
+	yymmdd_in_seconds := t.Unix()
 
-	// When updating targets.  If target.Timestamp == 0,
-	//    seek to next 2 valid 10 min timestamps.
-	//    set "current" and "next" Timestamps to these values.
+	columns := strings.Split(line, ",")
+	if len(columns) < 3 {
+		return -1
+	}
+	hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
+	if err != nil {
+		panic(err)
+	}
 
-	// Next valid timestamp is..? somefunction of log line Time?
-	// In this case, do isNear() check to make sure log line is reasonably valid.
+	utc_timestamp := yymmdd_in_seconds + hhmmss_in_seconds
 
-	// If isNear(), round down if within 4 mins of 10 min window., else round up to next 10 min window..
+	_type := columns[1]
+	equity := strings.Join(columns[2:], ",")
 
-	line_timestamp := int64(0)
-	return line_timestamp, "SYMBOL"
-	/*
-		t, _ := time.Parse("20060102", yymmdd)
-		yymmdd_in_seconds := t.Unix()
+	switch _type {
+	case "s":
+		s := structs.Stock{}
+		funcs.Decode(equity, &s, funcs.StockEncodingOrder)
 
-		// Split out columns
-		columns := strings.Split(line, ",")
-		hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
-		if err != nil {
-			panic(err)
-		}
+		utc_timestamp = c.updateStockTarget(s, utc_timestamp)
+	case "o":
+		o := structs.Option{}
+		funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
 
-		timestamp := yymmdd_in_seconds + hhmmss_in_seconds
+		utc_timestamp = c.updateOptionTarget(o, utc_timestamp)
+	default:
+		panic("Collapse switching wrong!")
+	}
 
-		_type := columns[1]
-		equity := strings.Join(columns[2:], ",")
-
-		equity_time := int64(0)
-		switch _type {
-		case "s":
-			s := structs.Stock{}
-			funcs.Decode(equity, &s, funcs.StockEncodingOrder)
-
-			c.UpdateCurrentStock(timestamp, s)
-			equity_time = s.Time
-		case "o":
-			o := structs.Option{}
-			funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
-
-			c.UpdateCurrentOptionChain(timestamp, o)
-			equity_time = o.Time
-		default:
-			panic("Collapse switching wrong!")
-		}
-
-		near, _ := isNear(equity_time, hhmmss_in_seconds, int64(45))
-		if !near {
-			// Stale stock, option info so not using.
-			return
-		}
-		// target_time may be defined in current_dir.
-		// If not there, we are waiting for 09:30:00
-		target_time := funcs.ClockTimeInSeconds("930")
-		last_distance := int64(45)
-		near, distance := isNear(hhmmss_in_seconds, target_time, last_distance)
-		if !near {
-			// Not closer to target_time than last run.
-			//
-		}
-	*/
+	return utc_timestamp
 }
 
-func isNear(time1 int64, time2 int64, padding int64) (bool, float64) {
-	secondsDiff := float64(time1) - float64(time2)
+func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) int64 {
+	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
+	near, _ := isNear(hhmmss_in_seconds, o.Time, 45)
+	if !near {
+		return -1
+	}
+
+	utc_interval := getTenMinTimestamp(utc_timestamp)
+	current_target := c.targets["current"][o.Underlying]
+	target_hhmmss := current_target.Timestamp % int64(24*60*60)
+
+	switch current_target.Timestamp {
+	case 0:
+		current_target.Timestamp = utc_interval
+		current_target.Options = map[string]structs.Option{}
+		current_target.Options[o.Symbol] = o
+
+		c.targets["current"][o.Underlying] = current_target
+	case utc_interval:
+		_, new_distance := isNear(target_hhmmss, o.Time, 45)
+		_, old_distance := isNear(target_hhmmss, current_target.Options[o.Symbol].Time, 45)
+
+		if new_distance < old_distance {
+			current_target.Options[o.Symbol] = o
+			c.targets["current"][o.Underlying] = current_target
+		}
+	default:
+		next_target := c.targets["next"][o.Underlying]
+		next_target.Timestamp = utc_interval
+		next_target.Options = map[string]structs.Option{}
+		next_target.Options[o.Symbol] = o
+
+		c.targets["next"][o.Underlying] = next_target
+	}
+
+	return utc_timestamp
+}
+
+func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) int64 {
+	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
+	near, _ := isNear(hhmmss_in_seconds, s.Time, 45)
+	if !near {
+		return -1
+	}
+
+	utc_interval := getTenMinTimestamp(utc_timestamp)
+	current_target := c.targets["current"][s.Symbol]
+	target_hhmmss := current_target.Timestamp % int64(24*60*60)
+
+	switch current_target.Timestamp {
+	case 0:
+		current_target.Timestamp = utc_interval
+		current_target.Stock = s
+		current_target.Options = map[string]structs.Option{}
+
+		c.targets["current"][s.Symbol] = current_target
+	case utc_interval:
+		_, new_distance := isNear(target_hhmmss, s.Time, 45)
+		_, old_distance := isNear(target_hhmmss, current_target.Stock.Time, 45)
+
+		if new_distance < old_distance {
+			current_target.Stock = s
+			c.targets["current"][s.Symbol] = current_target
+		}
+	default:
+		next_target := c.targets["next"][s.Symbol]
+		next_target.Timestamp = utc_interval
+		next_target.Stock = s
+		next_target.Options = map[string]structs.Option{}
+
+		c.targets["next"][s.Symbol] = next_target
+	}
+
+	return utc_timestamp
+}
+
+func getTenMinTimestamp(timestamp int64) int64 {
+	ten_min_in_seconds := int64(10 * 60)
+	r := timestamp % ten_min_in_seconds
+	before := timestamp - r
+	between := before + ten_min_in_seconds/2
+	after := before + ten_min_in_seconds
+
+	if timestamp < between {
+		return before
+	}
+	return after
+
+}
+
+func isNear(utc_time int64, local_time int64, padding int) (bool, float64) {
+	secondsDiff := float64(utc_time) - float64(local_time)
 
 	EST_diff := float64(18000) // -5 hours in seconds.
 	EDT_diff := float64(14400) // -4 hours in seconds.
 
-	distanceFromEST := secondsDiff - EST_diff
-	distanceFromEDT := secondsDiff - EDT_diff
+	distanceFromEST := math.Abs(secondsDiff - EST_diff)
+	distanceFromEDT := math.Abs(secondsDiff - EDT_diff)
 
 	minDiff := distanceFromEST
-	if math.Abs(minDiff) > math.Abs(distanceFromEDT) {
+	if minDiff > distanceFromEDT {
 		minDiff = distanceFromEDT
 	}
 
-	if math.Abs(minDiff) <= float64(padding) {
+	if minDiff <= float64(padding) {
 		return true, minDiff
 	}
 
