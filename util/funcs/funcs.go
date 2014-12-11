@@ -108,6 +108,19 @@ func LazyAppendFile(folderName string, fileName string, data string) error {
 	return nil
 }
 
+func LazyTouchFile(folderName string, fileName string) error {
+	f, err := os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE, 0777)
+	if err != nil {
+		os.MkdirAll(folderName, 0777)
+		f, err = os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE, 0777)
+	}
+	if err != nil {
+		return err
+	}
+	f.Close()
+	return nil
+}
+
 func LazyWriteFile(folderName string, fileName string, data []byte) error {
 	err := ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
 	if err != nil {

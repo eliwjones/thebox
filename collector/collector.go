@@ -296,12 +296,26 @@ func (c *Collector) maybeCycleTargets(current_timestamp int64) {
 
 func (c *Collector) promoteTarget(t target) {
 	if t.Stock.Symbol == "" {
-		fmt.Println("****************************************\nEmpty target.Stock Discarding.\n***********************************************")
+		message := fmt.Sprintf("promoteTarget err: Empty Target, Discarding, t.Timestampe: %d", t.Timestamp)
+		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+		return
 	}
-	// Send target to /live/data/yymmdd_seconds.<>
-	// Encode all Stock and Option data and lazyAppendFile() gigantic multiline blob.
+
+	yymmdd_in_seconds, lines, err := encodeTarget(t)
+	if err != nil {
+		message := fmt.Sprintf("promoteTarget err: %s", err)
+		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+		return
+	}
+	funcs.LazyAppendFile(c.livedir+"/data", yymmdd_in_seconds, lines)
 
 	// touch appropriate /live/timestamp/<ts> filename.
+	ts := fmt.Sprintf("%d", t.Timestamp)
+	err = funcs.LazyTouchFile(c.livedir+"/timestamp", ts)
+	if err != nil {
+		message := fmt.Sprintf("promoteTarget err: %s", err)
+		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+	}
 }
 
 func (c *Collector) SaveToLog(message interface{}) (string, string) {
@@ -444,6 +458,25 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) int6
 	}
 
 	return utc_timestamp
+}
+
+func encodeTarget(t target) (string, string, error) {
+	yymmdd_in_seconds := t.Timestamp - (t.Timestamp % (24 * 60 * 60))
+	hhmmss_in_seconds := t.Timestamp - yymmdd_in_seconds
+
+	es, err := funcs.Encode(&t.Stock, funcs.StockEncodingOrder)
+	if err != nil {
+		return "", "", err
+	}
+	lines := fmt.Sprintf("%d,s,%s", hhmmss_in_seconds, es)
+	for _, o := range t.Options {
+		eo, err := funcs.Encode(&o, funcs.OptionEncodingOrder)
+		if err != nil {
+			return "", "", err
+		}
+		lines += fmt.Sprintf("\n%d,o,%s", hhmmss_in_seconds, eo)
+	}
+	return fmt.Sprintf("%d", yymmdd_in_seconds), lines, nil
 }
 
 func getTenMinTimestamp(timestamp int64) int64 {
