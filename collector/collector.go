@@ -156,9 +156,8 @@ func (c *Collector) collect(symbol string) {
 
 	// Isn't technically safe to write here.. but.. I can stand to lose one error in a race.
 	if err != nil {
-		message := fmt.Sprintf("Got err: %s", err)
-		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
-		fmt.Println(message)
+		c.logError("collect", err)
+		fmt.Println(err)
 		c.replies <- false
 		return
 	}
@@ -185,9 +184,8 @@ func (c *Collector) Collect(symbol string) error {
 	}
 
 	if time.Now().Weekday() == time.Saturday || time.Now().Weekday() == time.Sunday {
-		message := "No need for Sat, Sun."
-		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
-		return fmt.Errorf(message)
+		c.logError("Collect", "No need for Sat, Sun.")
+		return fmt.Errorf("No need for Sat, Sun.")
 	}
 	early := "13:28"
 	late := "21:02"
@@ -196,7 +194,7 @@ func (c *Collector) Collect(symbol string) error {
 	// Hamfisted block before 13:30 UTC and after 21:00 UTC.
 	if time.Now().Before(tooEarly) || time.Now().After(tooLate) {
 		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", time.Now().Format("15:04:05"), early, late)
-		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+		c.logError("Collect", message)
 		return fmt.Errorf(message)
 	}
 
@@ -210,13 +208,14 @@ func (c *Collector) dumpTargets() {
 		for symbol, data := range symboldata {
 			d, err := json.Marshal(data)
 			if err != nil {
-				panic(err)
+				c.logError("dumpTargets", err)
+				continue
 			}
 			path := c.livedir + "/targets/" + _type
 			filename := symbol
 			err = funcs.LazyWriteFile(path, filename, d)
 			if err != nil {
-				panic(err)
+				c.logError("dumpTargets", err)
 			}
 		}
 	}
@@ -230,7 +229,8 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 		path := c.livedir + "/targets/" + _type
 		entries, err := ioutil.ReadDir(path)
 		if err != nil {
-			//panic(err)
+			c.logError("loadTargets", err)
+			continue
 		}
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -239,7 +239,8 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 			symbol := entry.Name()
 			data, err := ioutil.ReadFile(path + "/" + symbol)
 			if err != nil {
-				panic(err)
+				c.logError("loadTargets", err)
+				continue
 			}
 			var t target
 			json.Unmarshal(data, &t)
@@ -248,6 +249,19 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 	}
 
 	return targets
+}
+
+func (c *Collector) logError(functionName string, err interface{}) {
+	err_str := ""
+	switch err.(type) {
+	case string:
+		err_str = err.(string)
+	case error:
+		e, _ := err.(error)
+		err_str = fmt.Sprintf("%s", e)
+	}
+	message := fmt.Sprintf("[%s] %s", functionName, err_str)
+	funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
 }
 
 func (c *Collector) maybeCycleTargets(current_timestamp int64) {
@@ -296,15 +310,14 @@ func (c *Collector) maybeCycleTargets(current_timestamp int64) {
 
 func (c *Collector) promoteTarget(t target) {
 	if t.Stock.Symbol == "" {
-		message := fmt.Sprintf("promoteTarget err: Empty Target, Discarding, t.Timestampe: %d", t.Timestamp)
-		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+		message := fmt.Sprintf("Empty Target, Discarding, t.Timestamp: %d", t.Timestamp)
+		c.logError("promoteTarget", message)
 		return
 	}
 
 	yymmdd_in_seconds, lines, err := encodeTarget(t)
 	if err != nil {
-		message := fmt.Sprintf("promoteTarget err: %s", err)
-		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+		c.logError("promoteTarget", err)
 		return
 	}
 	funcs.LazyAppendFile(c.livedir+"/data", yymmdd_in_seconds, lines)
@@ -313,8 +326,7 @@ func (c *Collector) promoteTarget(t target) {
 	ts := fmt.Sprintf("%d", t.Timestamp)
 	err = funcs.LazyTouchFile(c.livedir+"/timestamp", ts)
 	if err != nil {
-		message := fmt.Sprintf("promoteTarget err: %s", err)
-		funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
+		c.logError("promoteTarget", err)
 	}
 }
 
@@ -351,7 +363,8 @@ func (c *Collector) updateTarget(yymmdd string, line string) int64 {
 
 	hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
 	if err != nil {
-		panic(err)
+		c.logError("updateTarget", err)
+		return -1
 	}
 
 	utc_timestamp := yymmdd_in_seconds + hhmmss_in_seconds
@@ -371,7 +384,7 @@ func (c *Collector) updateTarget(yymmdd string, line string) int64 {
 
 		utc_timestamp = c.updateOptionTarget(o, utc_timestamp)
 	default:
-		panic("Collapse switching wrong!")
+		c.logError("updateTarget", "Bad switch _type: "+_type)
 	}
 
 	return utc_timestamp

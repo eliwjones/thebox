@@ -3,6 +3,7 @@ package collector
 import (
 	"github.com/eliwjones/thebox/util/funcs"
 
+	"fmt"
 	"os"
 	"testing"
 )
@@ -16,7 +17,7 @@ func Test_Collector_New(t *testing.T) {
 }
 
 func Test_Collector_dumpTargets(t *testing.T) {
-	c := New(".")
+	c := New("./testdir")
 
 	c.targets = map[string]map[string]target{"current": map[string]target{}, "next": map[string]target{}}
 	c.targets["current"]["AAPL"] = target{Timestamp: int64(1234567890)}
@@ -26,7 +27,7 @@ func Test_Collector_dumpTargets(t *testing.T) {
 }
 
 func Test_Collector_loadTargets(t *testing.T) {
-	c := New(".")
+	c := New("./testdir")
 
 	targets := c.loadTargets()
 
@@ -40,11 +41,11 @@ func Test_Collector_loadTargets(t *testing.T) {
 		t.Errorf("Not expecting 'next' targets.")
 	}
 
-	os.RemoveAll("./live")
+	os.RemoveAll("./testdir/live")
 }
 
 func Test_Collector_maybeCycleTargets(t *testing.T) {
-	c := New(".")
+	c := New("./testdir")
 	start_ts := int64(100)
 	next_ts := start_ts + int64(10*60)
 	c.targets["current"]["GOOG"] = target{Timestamp: start_ts}
@@ -113,4 +114,11 @@ func Test_Collector_isNear(t *testing.T) {
 	if diff != 50 {
 		t.Errorf("Expected 50, Got: %d", int(diff))
 	}
+}
+
+func Test_Collector_logError(t *testing.T) {
+	os.RemoveAll("./testdir/error")
+	c := New("./testdir")
+	c.logError("testfunc", fmt.Errorf("Test error of type 'error'"))
+	c.logError("testfunc", "Test error of type 'string'")
 }
