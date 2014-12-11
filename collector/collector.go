@@ -120,6 +120,7 @@ func (c *Collector) ProcessStream(start string, end string) {
 
 	current_timestamp := int64(-1)
 	for _, yymmdd := range sorted_days {
+		fmt.Println("******************************" + yymmdd + "*******************************")
 		log_data, err := ioutil.ReadFile(c.logdir + "/" + yymmdd)
 		if err != nil {
 			fmt.Println(err)
@@ -143,7 +144,7 @@ func (c *Collector) ProcessStream(start string, end string) {
 			c.maybeCycleTargets(log_timestamp)
 
 			current_timestamp = log_timestamp
-			fmt.Printf("[current_timestamp] %d\n", current_timestamp)
+			fmt.Printf("[%s][current_timestamp] %d\n", yymmdd, current_timestamp)
 		}
 	}
 	c.dumpTargets()
@@ -250,30 +251,53 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 }
 
 func (c *Collector) maybeCycleTargets(current_timestamp int64) {
+	distance_from_target_time := float64(-1)
+	closeness := float64(-1)
+
+	interval := getTenMinTimestamp(current_timestamp)
+	interval_hhmmss := interval % int64(24*60*60)
+
 	for symbol, _ := range c.targets["current"] {
-		interval := getTenMinTimestamp(current_timestamp)
+		// Zero Timestamp suggests there is nothing to promote.
 		if c.targets["current"][symbol].Timestamp == 0 {
-			// Nothing to promote.
 			continue
 		}
-		if interval == c.targets["current"][symbol].Timestamp {
-			// We are in the target interval, no need to cycle.
+		// Old target was promoted, waiting for current interval before doing anything.
+		if interval < c.targets["current"][symbol].Timestamp {
 			continue
+		}
+		// Can only potentially skip promotion if we are in Target Interval.
+		if interval == c.targets["current"][symbol].Timestamp {
+			distance_from_target_time = float64(c.targets["current"][symbol].Timestamp - current_timestamp)
+			_, closeness = isNear(interval_hhmmss, c.targets["current"][symbol].Stock.Time, 45)
+
+			// Still a chance of getting closer data. (target is in the future)
+			if distance_from_target_time > 0 {
+				continue
+			}
+			// Still a chance of getting closer data.
+			// But only care to try for this if data is further than 30 seconds from target.
+			if closeness > 30 && math.Abs(distance_from_target_time) < closeness {
+				continue
+			}
 		}
 
 		c.promoteTarget(c.targets["current"][symbol])
 
-		// cycle "next" -> "current"
-
+		// In here, will want to set next target Timestamp manually if isn't already there.
+		// Which, it probably will not be since "acceptable" data is most likely got before interval changeover.
 		c.targets["current"][symbol] = c.targets["next"][symbol]
+		if c.targets["current"][symbol].Timestamp == 0 {
+			c.targets["current"][symbol] = target{Timestamp: interval + int64(10*60), Options: map[string]structs.Option{}}
+		}
 		c.targets["next"][symbol] = target{}
 	}
 }
 
 func (c *Collector) promoteTarget(t target) {
-	fmt.Println("************************************")
-	fmt.Println("Promoting Target!")
-	fmt.Printf("timestamp: %d\nsymbol: %s\n", t.Timestamp, t.Stock.Symbol)
+	if t.Stock.Symbol == "" {
+		fmt.Println("****************************************\nEmpty target.Stock Discarding.\n***********************************************")
+	}
 	// Send target to /live/data/yymmdd_seconds.<>
 	// Encode all Stock and Option data and lazyAppendFile() gigantic multiline blob.
 
@@ -310,6 +334,7 @@ func (c *Collector) updateTarget(yymmdd string, line string) int64 {
 	if len(columns) < 3 {
 		return -1
 	}
+
 	hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
 	if err != nil {
 		panic(err)
@@ -349,14 +374,14 @@ func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) in
 	current_target := c.targets["current"][o.Underlying]
 	target_hhmmss := current_target.Timestamp % int64(24*60*60)
 
-	switch current_target.Timestamp {
-	case 0:
+	switch {
+	case 0 == current_target.Timestamp:
 		current_target.Timestamp = utc_interval
 		current_target.Options = map[string]structs.Option{}
 		current_target.Options[o.Symbol] = o
 
 		c.targets["current"][o.Underlying] = current_target
-	case utc_interval:
+	case utc_interval == current_target.Timestamp:
 		_, new_distance := isNear(target_hhmmss, o.Time, 45)
 		_, old_distance := isNear(target_hhmmss, current_target.Options[o.Symbol].Time, 45)
 
@@ -364,7 +389,11 @@ func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) in
 			current_target.Options[o.Symbol] = o
 			c.targets["current"][o.Underlying] = current_target
 		}
-	default:
+	case utc_interval < current_target.Timestamp:
+		// interval is old, do not want.
+		break
+	case utc_interval > current_target.Timestamp:
+		// Future interval, stick into "next"
 		next_target := c.targets["next"][o.Underlying]
 		next_target.Timestamp = utc_interval
 		next_target.Options = map[string]structs.Option{}
@@ -387,14 +416,14 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) int6
 	current_target := c.targets["current"][s.Symbol]
 	target_hhmmss := current_target.Timestamp % int64(24*60*60)
 
-	switch current_target.Timestamp {
-	case 0:
+	switch {
+	case 0 == current_target.Timestamp:
 		current_target.Timestamp = utc_interval
 		current_target.Stock = s
 		current_target.Options = map[string]structs.Option{}
 
 		c.targets["current"][s.Symbol] = current_target
-	case utc_interval:
+	case utc_interval == current_target.Timestamp:
 		_, new_distance := isNear(target_hhmmss, s.Time, 45)
 		_, old_distance := isNear(target_hhmmss, current_target.Stock.Time, 45)
 
@@ -402,7 +431,10 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) int6
 			current_target.Stock = s
 			c.targets["current"][s.Symbol] = current_target
 		}
-	default:
+	case utc_interval < current_target.Timestamp:
+		// interval is old, do not want.
+		break
+	case utc_interval > current_target.Timestamp:
 		next_target := c.targets["next"][s.Symbol]
 		next_target.Timestamp = utc_interval
 		next_target.Stock = s
