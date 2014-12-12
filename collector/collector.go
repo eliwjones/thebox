@@ -193,7 +193,7 @@ func (c *Collector) Collect(symbol string) error {
 	tooLate, _ := time.Parse("20060102 15:04", time.Now().Format("20060102")+" "+late)
 	// Hamfisted block before 13:30 UTC and after 21:00 UTC.
 	if time.Now().Before(tooEarly) || time.Now().After(tooLate) {
-		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", time.Now().Format("15:04:05"), early, late)
+		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", time.Now().UTC().Format("15:04:05"), early, late)
 		c.logError("Collect", message)
 		return fmt.Errorf(message)
 	}
