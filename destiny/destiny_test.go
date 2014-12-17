@@ -145,3 +145,37 @@ func Test_Destiny_Processor_Delta(t *testing.T) {
 		t.Errorf("Expected: %d, Got: %d!", pathLen+1, len(d.paths))
 	}
 }
+
+func Test_Destiny_Penalties(t *testing.T) {
+	k := float64(1)
+
+	p := distanceFromStrikePenalty(120, 120, 95, k)
+	if p != 1 {
+		t.Errorf("Distance Penalty - Expected: 1, Got: %4f", p)
+	}
+
+	p = distanceFromStrikePenalty(95, 120, 95, k)
+	if p != 0 {
+		t.Errorf("Distance Penalty - Expected: 0, Got: %4f", p)
+	}
+
+	p = distanceFromExpirationPenalty(int64(0), int64(5*24*60*60), k)
+	if p != 1 {
+		t.Errorf("Expiration Penalty - Expected: 1, Got: %4f", p)
+	}
+
+	p = distanceFromExpirationPenalty(int64(0), int64(1*24*60*60), k)
+	if p != 0 {
+		t.Errorf("Expiration Penalty - Expected: 0, Got: %4f", p)
+	}
+
+	p = premiumPenalty(300, 300, 30, k)
+	if p != 1 {
+		t.Errorf("Premium Penalty - Expected: 1, Got: %4f", p)
+	}
+
+	p = premiumPenalty(30, 300, 30, k)
+	if p != 0 {
+		t.Errorf("Premium Penalty - Expected: 0, Got: %4f", p)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
+	"math"
 	"math/rand"
 )
 
@@ -134,3 +135,47 @@ func pathModifier(delta structs.Delta, d *Destiny) {
 		d.Put(delta.Path, false)
 	}
 }
+
+// Protean Penalty Functions.
+
+func distanceFromStrikePenalty(strike int, maxStrike, underlyingPrice int, k float64) float64 {
+	// Not sure of least messy way to write out function.
+
+	strikeDistance := math.Abs(float64(strike - underlyingPrice))
+	maxDistance := math.Abs(float64(maxStrike - underlyingPrice))
+
+	penalty := k * (strikeDistance / maxDistance)
+
+	return penalty
+}
+
+func distanceFromExpirationPenalty(utcTimestamp int64, expirationTimestamp int64, k float64) float64 {
+	secondsInDay := int64(24 * 60 * 60)
+	maxDistance := float64(4 * secondsInDay)
+
+	currentDistance := float64(utcTimestamp - (expirationTimestamp - secondsInDay))
+	if currentDistance > 0 {
+		// We are on expiration day, no penalty for nothing.
+		return 0
+	}
+	currentDistance = math.Abs(currentDistance)
+
+	penalty := k * (currentDistance / maxDistance)
+
+	return penalty
+}
+
+func premiumPenalty(optionPrice int, closestPrice int, farthestPrice int, k float64) float64 {
+	currentDistance := math.Abs(float64(optionPrice - farthestPrice))
+	maxDistance := math.Abs(float64(closestPrice - farthestPrice))
+
+	penalty := k * (currentDistance / maxDistance)
+
+	return penalty
+}
+
+// Probability of adding option to list of paths?
+//     (1-distanceFromStrikePenalty() + 1-distanceFromExpirationPenalty())/2 - premiumPenalty()
+//
+// This of course, is a big deviation from initial thinking...
+// Not sure of least dumb way to convert this to list of N paths.
