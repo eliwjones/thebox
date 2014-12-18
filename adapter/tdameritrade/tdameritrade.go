@@ -175,10 +175,10 @@ func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, structs.Stoc
 	result := TDAResponse{}
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
-		return options, stock, err
+		return options, stock, fmt.Errorf("body: %s, err: %s", string(body), err)
 	}
 	if result.Error != "" {
-		return options, stock, fmt.Errorf(result.Error)
+		return options, stock, fmt.Errorf("API Response Error: " + result.Error)
 	}
 
 	stock = underlyingToStock(result.Underlying)
