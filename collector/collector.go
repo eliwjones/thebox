@@ -151,22 +151,35 @@ func (c *Collector) ProcessStream(start string, end string) {
 
 }
 
-func (c *Collector) collect(symbol string) {
-	options, stock, err := c.Adapter.GetOptions(symbol)
+func (c *Collector) collect(symbol string) (string, string) {
+	thisMonth := time.Now().Format("200601")
+	limit := time.Now().AddDate(0, 0, 22)
+	limitMonth := limit.Format("200601")
+
+	options, stock, err := c.Adapter.GetOptions(symbol, thisMonth)
 
 	// Isn't technically safe to write here.. but.. I can stand to lose one error in a race.
 	if err != nil {
-		c.logError("collect", err)
+		c.logError("collect ("+thisMonth+") - "+symbol, err)
 		fmt.Println(err)
 		c.replies <- false
-		return
+		return thisMonth, limitMonth
 	}
+	if limitMonth != thisMonth {
+		optionsNextMonth, _, err := c.Adapter.GetOptions(symbol, limitMonth)
+		if err != nil {
+			c.logError("collect ("+limitMonth+") - "+symbol, err)
+			c.replies <- false
+			return thisMonth, limitMonth
+		}
+		options = append(options, optionsNextMonth...)
+	}
+
 	// May regret this ugly seeming structure.
 	c.pipe <- structs.Message{Data: stock}
 
-	limit := time.Now().AddDate(0, 0, 22).Format("20060102")
 	for _, option := range options {
-		if option.Expiration > limit {
+		if option.Expiration > limit.Format("20060102") {
 			continue
 		}
 		m := structs.Message{Data: option}
@@ -175,6 +188,8 @@ func (c *Collector) collect(symbol string) {
 	// Send empty message with c.replies channel to signal done.
 	m := structs.Message{Reply: c.replies}
 	c.pipe <- m
+	
+	return thisMonth, limitMonth
 }
 
 func (c *Collector) Collect(symbol string) error {

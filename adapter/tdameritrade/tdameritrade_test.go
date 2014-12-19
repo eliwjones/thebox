@@ -6,6 +6,8 @@ import (
 	"github.com/eliwjones/thebox/util/structs"
 
 	"testing"
+
+	"time"
 )
 
 var (
@@ -81,8 +83,8 @@ func Test_TDAmeritrade_GetBalances(t *testing.T) {
 }
 
 func Test_TDAmeritrade_GetOptions(t *testing.T) {
-	underlying := "INTC"
-	options, stock, err := gtda.GetOptions(underlying)
+	underlying := "GOOG"
+	options, stock, err := gtda.GetOptions(underlying, time.Now().Format("200601"))
 	if err != nil {
 		t.Errorf("Got err: %s", err)
 	}

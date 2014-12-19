@@ -163,11 +163,11 @@ func (s *TDAmeritrade) GetBalances() (map[string]int, error) {
 	return map[string]int{"cash": int(cash * 100), "value": int(value * 100)}, nil
 }
 
-func (s *TDAmeritrade) GetOptions(symbol string) ([]structs.Option, structs.Stock, error) {
+func (s *TDAmeritrade) GetOptions(symbol string, expire string) ([]structs.Option, structs.Stock, error) {
 	options := make([]structs.Option, 0)
 	var stock structs.Stock
 
-	params := map[string]string{"source": s.Source, "symbol": symbol, "quotes": "true"}
+	params := map[string]string{"source": s.Source, "symbol": symbol, "quotes": "true", "expire": expire}
 	body, err := request(BASEURL+"/apps/200/OptionChain"+";jsessionid="+s.JsessionID, "GET", params)
 	if err != nil {
 		return options, stock, err

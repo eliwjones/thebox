@@ -1,7 +1,9 @@
 package collector
 
 import (
+	"github.com/eliwjones/thebox/adapter/tdameritrade"
 	"github.com/eliwjones/thebox/util/funcs"
+	"github.com/eliwjones/thebox/util/structs"
 
 	"fmt"
 	"os"
@@ -9,10 +11,79 @@ import (
 )
 
 func Test_Collector_New(t *testing.T) {
-	c := New("../cmd/collectord")
+	c := New("./testdir")
 
-	if c.rootdir != "../cmd/collectord" {
+	if c.rootdir != "./testdir" {
 		t.Errorf("Expected: %s, Got: %s!", "../cmd/collectord", c.rootdir)
+	}
+}
+
+func Test_Collector_collect(t *testing.T) {
+	c := New("./testdir")
+
+	// Suppose may need some sort of LoadAdapterFromConfig() function somewhere.
+	lines, _ := funcs.GetConfig(c.rootdir + "/config")
+	id := lines[0]
+	pass := lines[1]
+	sid := lines[2]
+	jsess := lines[3]
+
+	tda := tdameritrade.New(id, pass, sid, jsess)
+	if tda.JsessionID != jsess {
+		lines[3] = tda.JsessionID
+		funcs.UpdateConfig(c.rootdir+"/config", lines)
+	}
+	c.Adapter = tda
+	symbol := "INTC"
+	thisMonth, limitMonth := c.collect(symbol)
+
+	select {
+	case reply := <-c.replies:
+		r, _ := reply.(bool)
+		if !r {
+			t.Errorf("Received False Reply from c.replies")
+		}
+	case reply := <-c.pipe:
+		s, success := reply.Data.(structs.Stock)
+		if !success {
+			t.Errorf("Expected to get Stock back first.")
+		}
+		if s.Symbol != symbol {
+			t.Errorf("Expected: %s, Got: %s!", symbol, s.Symbol)
+		}
+	}
+
+	if len(c.pipe) == 0 {
+		t.Errorf("Expecting Non-zero Pipe.")
+	}
+
+	seenThisMonth := false
+	seenLimitMonth := false
+	// If here, should read out all options.
+	for message := range c.pipe {
+		if message.Data == nil {
+			break
+		}
+		o, success := message.Data.(structs.Option)
+		if !success {
+			t.Errorf("Expecting an Option here!")
+		}
+		if o.Expiration[:6] != thisMonth && o.Expiration[:6] != limitMonth {
+			t.Errorf("Expected Expiration %s or %s, Got: %s", thisMonth, limitMonth, o.Expiration)
+		}
+		if o.Expiration[:6] == thisMonth {
+			seenThisMonth = true
+		}
+		if o.Expiration[:6] == limitMonth {
+			seenLimitMonth = true
+		}
+	}
+
+	if !seenThisMonth {
+		t.Errorf("Did not see Exp: %s", thisMonth)
+	}
+	if !seenLimitMonth {
+		t.Errorf("Did not see Exp: %s", seenLimitMonth)
 	}
 }
 
@@ -46,11 +117,12 @@ func Test_Collector_loadTargets(t *testing.T) {
 
 func Test_Collector_maybeCycleTargets(t *testing.T) {
 	c := New("./testdir")
-	start_ts := int64(100)
+	start_ts := int64(10 * 60)
 	next_ts := start_ts + int64(10*60)
 	c.targets["current"]["GOOG"] = target{Timestamp: start_ts}
 	c.targets["next"]["GOOG"] = target{Timestamp: next_ts}
 
+	// Should silently pass over old timestamp.
 	ts := c.targets["current"]["GOOG"].Timestamp - 50
 	c.maybeCycleTargets(ts)
 	if c.targets["current"]["GOOG"].Timestamp != start_ts {
@@ -60,10 +132,11 @@ func Test_Collector_maybeCycleTargets(t *testing.T) {
 		t.Errorf("Next Target Timestamp should not have advanced!")
 	}
 
-	ts = c.targets["current"]["GOOG"].Timestamp + 50
+	// Should cycle for timestamp past 5 minute midpoint.
+	ts = c.targets["current"]["GOOG"].Timestamp + int64(5*60)
 	c.maybeCycleTargets(ts)
 	if c.targets["current"]["GOOG"].Timestamp != next_ts {
-		t.Errorf("Target Timestamp should have advanced!")
+		t.Errorf("Target Timestamp Expected: %d, Got: %d", next_ts, c.targets["current"]["GOOG"].Timestamp)
 	}
 	if c.targets["next"]["GOOG"].Timestamp == next_ts {
 		t.Errorf("Next Target Timestamp should have advanced!")
