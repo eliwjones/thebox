@@ -10,14 +10,6 @@ import (
 	"testing"
 )
 
-func Test_Collector_New(t *testing.T) {
-	c := New("./testdir")
-
-	if c.rootdir != "./testdir" {
-		t.Errorf("Expected: %s, Got: %s!", "../cmd/collectord", c.rootdir)
-	}
-}
-
 func Test_Collector_collect(t *testing.T) {
 	c := New("./testdir")
 
