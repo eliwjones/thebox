@@ -200,7 +200,12 @@ func (s *TDAmeritrade) GetOptions(symbol string, expire string) ([]structs.Optio
 			option.Time = stock.Time
 			option.Type = "p"
 
-			options = append(options, option)
+			// TDAmeritrade returns magical put for AAPL with empty Symbol and Underlying.
+			// Going to go ahead and be more restrictive by requiring Underlying == symbol.
+			// May regret that later.
+			if option.Symbol != "" && option.Underlying == symbol {
+				options = append(options, option)
+			}
 
 			option = containerToOption(strike.Call)
 			option.Expiration = optionchain.Expiration
@@ -208,8 +213,15 @@ func (s *TDAmeritrade) GetOptions(symbol string, expire string) ([]structs.Optio
 			option.Time = stock.Time
 			option.Type = "c"
 
-			options = append(options, option)
+			// In case TDAmeritrade returns magical call with empty Symbol and Underlying.
+			if option.Symbol != "" && option.Underlying == symbol {
+				options = append(options, option)
+			}
 		}
+	}
+
+	if len(options) < 6 {
+		return options, stock, fmt.Errorf("Received less than 6 options!")
 	}
 
 	return options, stock, nil
