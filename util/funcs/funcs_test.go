@@ -5,6 +5,7 @@ import (
 
 	"reflect"
 	"testing"
+	"time"
 )
 
 func Test_EncodeDecodeOption(t *testing.T) {
@@ -78,6 +79,23 @@ func Test_getConfig(t *testing.T) {
 	_, err = GetConfig("nonexistent")
 	if err == nil {
 		t.Errorf("Not expecting to find 'nonexistent' file.")
+	}
+}
+
+func Test_SeekToNearestFriday(t *testing.T) {
+	t1, _ := time.Parse("20060102", "20150107")
+	t2 := SeekToNearestFriday(t1)
+
+	if t2.Weekday() != time.Friday {
+		t.Errorf("Expected Friday, Got: %v", t2.Weekday)
+	}
+
+	// Verify it returns same time if we are on a Friday.
+	t1, _ = time.Parse("20060102", "20150109")
+	t2 = SeekToNearestFriday(t1)
+
+	if t2 != t1 {
+		t.Errorf("Expected %v, Got %v", t1, t2)
 	}
 }
 

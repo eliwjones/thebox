@@ -138,6 +138,18 @@ func ClockTimeInSeconds(hhmmss string) int64 {
 	return t.Unix() - t.Truncate(24*time.Hour).Unix()
 }
 
+func SeekToNearestFriday(t time.Time) time.Time {
+	if t.Weekday() == time.Friday {
+		return t
+	}
+	for {
+		t = t.AddDate(0, 0, 1)
+		if t.Weekday() == time.Friday {
+			return t
+		}
+	}
+}
+
 func UpdateConfig(path string, lines []string) error {
 	f := []byte(strings.Join(lines, "\n"))
 	err := ioutil.WriteFile(path, f, 0777)
