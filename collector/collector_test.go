@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func Test_Collector_collect(t *testing.T) {
@@ -197,9 +198,11 @@ func Test_promoteTarget(tst *testing.T) {
 
 	exp := "20150130"
 	symbol := "GOOG_013015C600"
+	t1, _ := time.Parse("20060102 15:04", "20150126 19:00")
+	ts := t1.Unix()
 
 	t := target{}
-	t.Timestamp = int64(1000000000)
+	t.Timestamp = ts
 	t.Stock.Symbol = "GOOG"
 	t.Stock.Bid = 600
 
@@ -233,11 +236,29 @@ func Test_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
 	c := New("test", "./testdir")
 	exp := "20150130"
 	symbol := "GOOG_013015C600"
+	t1, _ := time.Parse("20060102 15:04", "20150123 21:00")
+	ts := t1.Unix()
+
+	if len(c.maximums) != 0 {
+		t.Errorf("Expected 0 maximums, Got: %d", len(c.maximums))
+	}
+
 	s := structs.Stock{Symbol: "GOOG", Bid: 60000}
 	o := structs.Option{Symbol: symbol, Bid: 500, Strike: 60000, Underlying: "GOOG", Expiration: exp}
 
-	c.addMaximum(o, s, int64(1000000))
+	err := c.addMaximum(o, s, ts)
+	if err == nil {
+		t.Errorf("Expected err.")
+	}
+	if len(c.maximums) != 0 {
+		t.Errorf("Expected 0 maximums, Got: %d", len(c.maximums))
+	}
 
+	err = c.addMaximum(o, s, ts+int64(2*24*60*60))
+
+	if err != nil {
+		t.Errorf("Did not expect error. Got: %s", err)
+	}
 	if c.maximums[o.Expiration][o.Symbol][0].MaximumBid != o.Bid {
 		t.Errorf("Expected MaximumBid to equal option.Bid.")
 	}
@@ -271,5 +292,4 @@ func Test_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
 	if !reflect.DeepEqual(c.maximums, maximums) {
 		t.Errorf("Expected %v, Got: %v", maximums, c.maximums)
 	}
-
 }

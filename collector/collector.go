@@ -178,7 +178,20 @@ func (c *Collector) ProcessStream(start string, end string) {
 
 }
 
-func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int64) {
+func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int64) error {
+	// No Tracking for anything farther than 1 week from expiration.
+	//    subtracting 6 days in seconds since o.Expiration will parse to 00:00.
+	//    no need to be too exact since options don't trade on Sat, Sun.
+	// No Tracking for anything past expiration.
+	t, _ := time.Parse("20060102", o.Expiration)
+	expirationDistance := timestamp - t.Unix()
+	if expirationDistance < int64(-6*24*60*60) {
+		return fmt.Errorf("Further than 1 week from expiration. Distance: %d", expirationDistance)
+	}
+	if expirationDistance > int64(1*24*60*60) {
+		return fmt.Errorf("Expiration past. Distance: %d", expirationDistance)
+	}
+
 	m := maximum{}
 	m.Expiration = o.Expiration
 	m.MaximumBid = o.Bid
@@ -198,6 +211,8 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 		c.maximums[o.Expiration][o.Symbol] = []maximum{}
 	}
 	c.maximums[o.Expiration][o.Symbol] = append(c.maximums[o.Expiration][o.Symbol], m)
+
+	return nil
 }
 
 func (c *Collector) collect(symbol string) (string, string) {
