@@ -18,9 +18,11 @@ import (
 type Collector struct {
 	Reckless bool
 
+	id        string
 	livedir   string
 	logdir    string
 	errordir  string
+	maximums  map[string]map[string][]maximum // keyed off of (Expiration, OptionSymbol)
 	pipe      chan structs.Message
 	replies   chan interface{}
 	rootdir   string
@@ -30,15 +32,29 @@ type Collector struct {
 	Adapter   *tdameritrade.TDAmeritrade
 }
 
+type maximum struct {
+	// Fields used for Key-ing mapmapmap (or writing to file).
+	Expiration   string
+	OptionSymbol string
+	Timestamp    int64
+	Underlying   string
+
+	MaximumBid    int
+	OptionBid     int
+	Strike        int
+	UnderlyingBid int
+}
+
 type target struct {
 	Timestamp int64 // Seconds since epoch target (10 min increments)
 	Stock     structs.Stock
 	Options   map[string]structs.Option // Keyed by option symbol.
 }
 
-func New(rootdir string) *Collector {
+func New(id string, rootdir string) *Collector {
 	c := &Collector{}
 
+	c.id = id
 	c.rootdir = rootdir
 	c.livedir = fmt.Sprintf("%s/live", rootdir) // /data, /targets, /timestamp ??
 	c.logdir = fmt.Sprintf("%s/log", rootdir)
@@ -47,6 +63,8 @@ func New(rootdir string) *Collector {
 	c.pipe = make(chan structs.Message, 10000)
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
+
+	c.maximums = map[string]map[string][]maximum{}
 
 	c.targets = map[string]map[string]target{}
 	c.targets["current"] = map[string]target{}
@@ -58,8 +76,9 @@ func New(rootdir string) *Collector {
 }
 
 func (c *Collector) RunOnce() {
-	// Deserialize livedir+"/now" info into nowData struct.
+	// Deserialize from disk.
 	c.targets = c.loadTargets()
+	c.maximums = c.loadMaximums()
 
 	// Fire off go collect(symbol) for []symbols
 	for _, symbol := range c.symbols {
@@ -78,8 +97,9 @@ func (c *Collector) RunOnce() {
 			// Save to log of all things
 			yymmdd, line := c.SaveToLog(message.Data)
 
-			// Update Target struct.
-			c.updateTarget(yymmdd, line)
+			// Update the things.
+			_, o := c.updateTarget(yymmdd, line)
+			c.updateMaximum(o)
 		}
 	}()
 
@@ -89,10 +109,13 @@ func (c *Collector) RunOnce() {
 	}
 
 	// cycle Targets if necessary.
+	// "sadly" addition of new max timestamp is hidden away in promoteTarget().
+	// which is inside maybeCycleTargets()
 	c.maybeCycleTargets(time.Now().UTC().Unix())
 
-	// Serialize c.targets to disk.
+	// Serialize to disk.
 	c.dumpTargets()
+	c.dumpMaximums()
 }
 
 func (c *Collector) ProcessStream(start string, end string) {
@@ -130,7 +153,8 @@ func (c *Collector) ProcessStream(start string, end string) {
 		lines := bytes.Split(log_data, []byte("\n"))
 		for _, line := range lines {
 
-			log_timestamp := c.updateTarget(yymmdd, string(line))
+			log_timestamp, o := c.updateTarget(yymmdd, string(line))
+			c.updateMaximum(o)
 			if current_timestamp == -1 {
 				current_timestamp = log_timestamp
 			}
@@ -143,12 +167,37 @@ func (c *Collector) ProcessStream(start string, end string) {
 			// log_timestamp has surpassed current_timestamp.
 			c.maybeCycleTargets(log_timestamp)
 
+			// Need something to remove expiration maximums once we have passed date.
+
 			current_timestamp = log_timestamp
 			fmt.Printf("[%s][current_timestamp] %d\n", yymmdd, current_timestamp)
 		}
 	}
 	c.dumpTargets()
+	c.dumpMaximums()
 
+}
+
+func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int64) {
+	m := maximum{}
+	m.Expiration = o.Expiration
+	m.MaximumBid = o.Bid
+	m.OptionBid = o.Bid
+	m.OptionSymbol = o.Symbol
+	m.Strike = o.Strike
+	m.Timestamp = timestamp
+	m.Underlying = o.Underlying
+	m.UnderlyingBid = s.Bid
+
+	_, expExists := c.maximums[o.Expiration]
+	if !expExists {
+		c.maximums[o.Expiration] = map[string][]maximum{}
+	}
+	_, optionSymbolExists := c.maximums[o.Expiration][o.Symbol]
+	if !optionSymbolExists {
+		c.maximums[o.Expiration][o.Symbol] = []maximum{}
+	}
+	c.maximums[o.Expiration][o.Symbol] = append(c.maximums[o.Expiration][o.Symbol], m)
 }
 
 func (c *Collector) collect(symbol string) (string, string) {
@@ -188,7 +237,7 @@ func (c *Collector) collect(symbol string) (string, string) {
 	// Send empty message with c.replies channel to signal done.
 	m := structs.Message{Reply: c.replies}
 	c.pipe <- m
-	
+
 	return thisMonth, limitMonth
 }
 
@@ -218,6 +267,25 @@ func (c *Collector) Collect(symbol string) error {
 	return nil
 }
 
+func (c *Collector) dumpMaximums() {
+	// Not sure of least dumb way to structure data for Marshal, Unmarshal..
+	// Expirementing with marshing all directly to current sub-dir with collector.id as filename.
+	// This is lazy and wastes space.. but.. looks like its about 67MB per Expiration.  So, I can deal with that for now.
+	// Special encoding would squeeze down to 20MB.. but.. that's only 3x so who cares.
+
+	d, err := json.Marshal(c.maximums)
+	if err != nil {
+		c.logError("dumpMaximums", err)
+		return
+	}
+	path := c.livedir + "/maximums/current"
+	filename := c.id
+	err = funcs.LazyWriteFile(path, filename, d)
+	if err != nil {
+		c.logError("dumpMaximums", err)
+	}
+}
+
 func (c *Collector) dumpTargets() {
 	for _type, symboldata := range c.targets {
 		for symbol, data := range symboldata {
@@ -234,6 +302,24 @@ func (c *Collector) dumpTargets() {
 			}
 		}
 	}
+}
+
+func (c *Collector) loadMaximums() map[string]map[string][]maximum {
+	maximums := map[string]map[string][]maximum{}
+
+	path := c.livedir + "/maximums/current"
+	data, err := ioutil.ReadFile(path + "/" + c.id)
+	if err != nil {
+		c.logError("loadMaximums", err)
+		return maximums
+	}
+	// Presumably, we now have last serialized []byte of maximums.
+	err = json.Unmarshal(data, &maximums)
+	if err != nil {
+		c.logError("loadMaximums", err)
+	}
+	return maximums
+
 }
 
 func (c *Collector) loadTargets() map[string]map[string]target {
@@ -343,6 +429,11 @@ func (c *Collector) promoteTarget(t target) {
 	if err != nil {
 		c.logError("promoteTarget", err)
 	}
+
+	// This is bit that concerns me.. but not sure what other ugly things would need to be done to avoid.
+	for _, o := range t.Options {
+		c.addMaximum(o, t.Stock, t.Timestamp)
+	}
 }
 
 func (c *Collector) SaveToLog(message interface{}) (string, string) {
@@ -367,19 +458,41 @@ func (c *Collector) SaveToLog(message interface{}) (string, string) {
 	return filename, line
 }
 
-func (c *Collector) updateTarget(yymmdd string, line string) int64 {
+func (c *Collector) updateMaximum(o structs.Option) {
+	// Don't do anything if nothing has been promoted for this expiration.
+	// All initialization happens inside addMaximum()
+	_, expExists := c.maximums[o.Expiration]
+	if !expExists {
+		return
+	}
+	_, optionSymbolExists := c.maximums[o.Expiration][o.Symbol]
+	if !optionSymbolExists {
+		return
+	}
+
+	for idx, _ := range c.maximums[o.Expiration][o.Symbol] {
+		if o.Bid > c.maximums[o.Expiration][o.Symbol][idx].MaximumBid {
+			c.maximums[o.Expiration][o.Symbol][idx].MaximumBid = o.Bid
+		}
+	}
+}
+
+func (c *Collector) updateTarget(yymmdd string, line string) (int64, structs.Option) {
+	// Always return Option struct for possible use by updateMaximum()
+	o := structs.Option{}
+
 	t, _ := time.Parse("20060102", yymmdd)
 	yymmdd_in_seconds := t.Unix()
 
 	columns := strings.Split(line, ",")
 	if len(columns) < 3 {
-		return -1
+		return -1, o
 	}
 
 	hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
 	if err != nil {
 		c.logError("updateTarget", err)
-		return -1
+		return -1, o
 	}
 
 	utc_timestamp := yymmdd_in_seconds + hhmmss_in_seconds
@@ -394,7 +507,6 @@ func (c *Collector) updateTarget(yymmdd string, line string) int64 {
 
 		utc_timestamp = c.updateStockTarget(s, utc_timestamp)
 	case "o":
-		o := structs.Option{}
 		funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
 
 		utc_timestamp = c.updateOptionTarget(o, utc_timestamp)
@@ -402,7 +514,7 @@ func (c *Collector) updateTarget(yymmdd string, line string) int64 {
 		c.logError("updateTarget", "Bad switch _type: "+_type)
 	}
 
-	return utc_timestamp
+	return utc_timestamp, o
 }
 
 func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) int64 {

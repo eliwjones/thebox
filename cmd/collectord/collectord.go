@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	action   = flag.String("action", "", "'clean', 'collect' or 'migrate'?")
+	id       = flag.String("id", "", "In case one is multiple actions with same root_dir.")
+	action   = flag.String("action", "", "'clean', 'collect', 'migrate' or 'process_stream'?")
 	reckless = flag.Bool("reckless", false, "Request and save data ignoring trading time and day ranges.")
 	root_dir = flag.String("root_dir", "", "Where to find config file, 'log' and 'data' directories?")
 	start    = flag.String("start", "", "Starting Timestamp")
@@ -41,7 +42,7 @@ func init() {
 }
 
 func main() {
-	c := collector.New(*root_dir)
+	c := collector.New(*action+*id, *root_dir)
 	c.Reckless = *reckless
 
 	switch *action {

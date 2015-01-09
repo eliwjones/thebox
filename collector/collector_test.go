@@ -7,11 +7,12 @@ import (
 
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 )
 
 func Test_Collector_collect(t *testing.T) {
-	c := New("./testdir")
+	c := New("test", "./testdir")
 
 	// Suppose may need some sort of LoadAdapterFromConfig() function somewhere.
 	lines, _ := funcs.GetConfig(c.rootdir + "/config")
@@ -80,7 +81,7 @@ func Test_Collector_collect(t *testing.T) {
 }
 
 func Test_Collector_dumpTargets(t *testing.T) {
-	c := New("./testdir")
+	c := New("test", "./testdir")
 
 	c.targets = map[string]map[string]target{"current": map[string]target{}, "next": map[string]target{}}
 	c.targets["current"]["AAPL"] = target{Timestamp: int64(1234567890)}
@@ -90,7 +91,7 @@ func Test_Collector_dumpTargets(t *testing.T) {
 }
 
 func Test_Collector_loadTargets(t *testing.T) {
-	c := New("./testdir")
+	c := New("test", "./testdir")
 
 	targets := c.loadTargets()
 
@@ -105,34 +106,6 @@ func Test_Collector_loadTargets(t *testing.T) {
 	}
 
 	os.RemoveAll("./testdir/live")
-}
-
-func Test_Collector_maybeCycleTargets(t *testing.T) {
-	c := New("./testdir")
-	start_ts := int64(10 * 60)
-	next_ts := start_ts + int64(10*60)
-	c.targets["current"]["GOOG"] = target{Timestamp: start_ts}
-	c.targets["next"]["GOOG"] = target{Timestamp: next_ts}
-
-	// Should silently pass over old timestamp.
-	ts := c.targets["current"]["GOOG"].Timestamp - 50
-	c.maybeCycleTargets(ts)
-	if c.targets["current"]["GOOG"].Timestamp != start_ts {
-		t.Errorf("Current Target Timestamp should not have advanced!")
-	}
-	if c.targets["next"]["GOOG"].Timestamp != next_ts {
-		t.Errorf("Next Target Timestamp should not have advanced!")
-	}
-
-	// Should cycle for timestamp past 5 minute midpoint.
-	ts = c.targets["current"]["GOOG"].Timestamp + int64(5*60)
-	c.maybeCycleTargets(ts)
-	if c.targets["current"]["GOOG"].Timestamp != next_ts {
-		t.Errorf("Target Timestamp Expected: %d, Got: %d", next_ts, c.targets["current"]["GOOG"].Timestamp)
-	}
-	if c.targets["next"]["GOOG"].Timestamp == next_ts {
-		t.Errorf("Next Target Timestamp should have advanced!")
-	}
 }
 
 func Test_Collector_isNear(t *testing.T) {
@@ -183,7 +156,120 @@ func Test_Collector_isNear(t *testing.T) {
 
 func Test_Collector_logError(t *testing.T) {
 	os.RemoveAll("./testdir/error")
-	c := New("./testdir")
+	c := New("test", "./testdir")
 	c.logError("testfunc", fmt.Errorf("Test error of type 'error'"))
 	c.logError("testfunc", "Test error of type 'string'")
+}
+
+func Test_Collector_maybeCycleTargets(t *testing.T) {
+	c := New("test", "./testdir")
+	start_ts := int64(10 * 60)
+	next_ts := start_ts + int64(10*60)
+	c.targets["current"]["GOOG"] = target{Timestamp: start_ts}
+	c.targets["next"]["GOOG"] = target{Timestamp: next_ts}
+
+	// Should silently pass over old timestamp.
+	ts := c.targets["current"]["GOOG"].Timestamp - 50
+	c.maybeCycleTargets(ts)
+	if c.targets["current"]["GOOG"].Timestamp != start_ts {
+		t.Errorf("Current Target Timestamp should not have advanced!")
+	}
+	if c.targets["next"]["GOOG"].Timestamp != next_ts {
+		t.Errorf("Next Target Timestamp should not have advanced!")
+	}
+
+	// Should cycle for timestamp past 5 minute midpoint.
+	ts = c.targets["current"]["GOOG"].Timestamp + int64(5*60)
+	c.maybeCycleTargets(ts)
+	if c.targets["current"]["GOOG"].Timestamp != next_ts {
+		t.Errorf("Target Timestamp Expected: %d, Got: %d", next_ts, c.targets["current"]["GOOG"].Timestamp)
+	}
+	if c.targets["next"]["GOOG"].Timestamp == next_ts {
+		t.Errorf("Next Target Timestamp should have advanced!")
+	}
+}
+
+// Mainly, wish to verify maximums is updated.
+func Test_promoteTarget(tst *testing.T) {
+	os.RemoveAll("./testdir/live/maximums")
+
+	c := New("test", "./testdir")
+
+	exp := "20150130"
+	symbol := "GOOG_013015C600"
+
+	t := target{}
+	t.Timestamp = int64(1000000000)
+	t.Stock.Symbol = "GOOG"
+	t.Stock.Bid = 600
+
+	t.Options = map[string]structs.Option{}
+	t.Options[symbol] = structs.Option{Symbol: symbol, Bid: 200, Strike: 60000, Underlying: "GOOG", Expiration: exp}
+
+	c.promoteTarget(t)
+
+	if len(c.maximums[exp][symbol]) != 1 {
+		tst.Errorf("Expected to find my option!")
+	}
+}
+
+func Test_updateTarget(t *testing.T) {
+	c := New("test", "./testdir")
+
+	line := "75600,o,GOOG,GOOG_011715P655,20150117,57600,65500,15000,15410,7220,0,1,0.00000,p"
+	timestamp, o := c.updateTarget("20150101", line)
+
+	if !reflect.DeepEqual(c.targets["current"][o.Underlying].Options[o.Symbol], o) {
+		t.Errorf("Expected: %v, Got: %v", o, c.targets["current"][o.Underlying].Options[o.Symbol])
+	}
+
+	if c.targets["current"][o.Underlying].Timestamp != timestamp {
+		t.Errorf("Expected: %v, Got: %v", timestamp, c.targets["current"][o.Underlying].Timestamp)
+	}
+}
+
+// Kitchen sinking this since don't want to do over and over.
+func Test_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
+	c := New("test", "./testdir")
+	exp := "20150130"
+	symbol := "GOOG_013015C600"
+	s := structs.Stock{Symbol: "GOOG", Bid: 60000}
+	o := structs.Option{Symbol: symbol, Bid: 500, Strike: 60000, Underlying: "GOOG", Expiration: exp}
+
+	c.addMaximum(o, s, int64(1000000))
+
+	if c.maximums[o.Expiration][o.Symbol][0].MaximumBid != o.Bid {
+		t.Errorf("Expected MaximumBid to equal option.Bid.")
+	}
+
+	o.Bid -= 10
+	c.updateMaximum(o)
+
+	if c.maximums[o.Expiration][o.Symbol][0].MaximumBid == o.Bid {
+		t.Errorf("Did not expect MaximumBid to change.")
+	}
+
+	o.Bid += 100
+	c.updateMaximum(o)
+
+	if c.maximums[o.Expiration][o.Symbol][0].MaximumBid != o.Bid {
+		t.Errorf("Expected: %d, Got: %d", o.Bid, c.maximums[o.Expiration][o.Symbol][0].MaximumBid)
+	}
+
+	maximums := c.maximums
+
+	c.dumpMaximums()
+
+	c.maximums = map[string]map[string][]maximum{}
+
+	if reflect.DeepEqual(c.maximums, maximums) {
+		t.Errorf("Expected mismatched maximums!")
+	}
+
+	c.maximums = c.loadMaximums()
+
+	if !reflect.DeepEqual(c.maximums, maximums) {
+		t.Errorf("Expected %v, Got: %v", maximums, c.maximums)
+	}
+
 }
