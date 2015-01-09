@@ -191,7 +191,7 @@ func Test_Collector_maybeCycleTargets(t *testing.T) {
 }
 
 // Mainly, wish to verify maximums is updated.
-func Test_promoteTarget(tst *testing.T) {
+func Test_Collector_promoteTarget(tst *testing.T) {
 	os.RemoveAll("./testdir/live/maximums")
 
 	c := New("test", "./testdir")
@@ -216,7 +216,7 @@ func Test_promoteTarget(tst *testing.T) {
 	}
 }
 
-func Test_updateTarget(t *testing.T) {
+func Test_Collector_updateTarget(t *testing.T) {
 	c := New("test", "./testdir")
 
 	line := "75600,o,GOOG,GOOG_011715P655,20150117,57600,65500,15000,15410,7220,0,1,0.00000,p"
@@ -232,7 +232,7 @@ func Test_updateTarget(t *testing.T) {
 }
 
 // Kitchen sinking this since don't want to do over and over.
-func Test_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
+func Test_Collector_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
 	c := New("test", "./testdir")
 	exp := "20150130"
 	symbol := "GOOG_013015C600"
