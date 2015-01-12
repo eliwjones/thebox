@@ -77,7 +77,7 @@ func Test_Collector_collect(t *testing.T) {
 		t.Errorf("Did not see Exp: %s", thisMonth)
 	}
 	if !seenLimitMonth {
-		t.Errorf("Did not see Exp: %s", seenLimitMonth)
+		t.Errorf("Did not see Exp: %s", limitMonth)
 	}
 }
 
@@ -160,6 +160,11 @@ func Test_Collector_logError(t *testing.T) {
 	c := New("test", "./testdir")
 	c.logError("testfunc", fmt.Errorf("Test error of type 'error'"))
 	c.logError("testfunc", "Test error of type 'string'")
+}
+
+func Test_Collector_maybeCycleMaximums(t *testing.T) {
+	c := New("test", "./testdir")
+	c.maybeCycleMaximums(int64(1000))
 }
 
 func Test_Collector_maybeCycleTargets(t *testing.T) {
@@ -264,14 +269,14 @@ func Test_Collector_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testin
 	}
 
 	o.Bid -= 10
-	c.updateMaximum(o)
+	c.updateMaximum(o, ts)
 
 	if c.maximums[o.Expiration][o.Symbol][0].MaximumBid == o.Bid {
 		t.Errorf("Did not expect MaximumBid to change.")
 	}
 
 	o.Bid += 100
-	c.updateMaximum(o)
+	c.updateMaximum(o, ts)
 
 	if c.maximums[o.Expiration][o.Symbol][0].MaximumBid != o.Bid {
 		t.Errorf("Expected: %d, Got: %d", o.Bid, c.maximums[o.Expiration][o.Symbol][0].MaximumBid)

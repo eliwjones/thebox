@@ -40,9 +40,14 @@ type maximum struct {
 	Underlying   string
 
 	MaximumBid    int
+	OptionAsk     int
 	OptionBid     int
+	OptionType    string
 	Strike        int
 	UnderlyingBid int
+	Volume        int
+	OpenInterest  int
+	MaxTimestamp  int64
 }
 
 type target struct {
@@ -98,8 +103,8 @@ func (c *Collector) RunOnce() {
 			yymmdd, line := c.SaveToLog(message.Data)
 
 			// Update the things.
-			_, o := c.updateTarget(yymmdd, line)
-			c.updateMaximum(o)
+			log_timestamp, o := c.updateTarget(yymmdd, line)
+			c.updateMaximum(o, log_timestamp)
 		}
 	}()
 
@@ -112,6 +117,7 @@ func (c *Collector) RunOnce() {
 	// "sadly" addition of new max timestamp is hidden away in promoteTarget().
 	// which is inside maybeCycleTargets()
 	c.maybeCycleTargets(time.Now().UTC().Unix())
+	c.maybeCycleMaximums(time.Now().UTC().Unix())
 
 	// Serialize to disk.
 	c.dumpTargets()
@@ -154,7 +160,7 @@ func (c *Collector) ProcessStream(start string, end string) {
 		for _, line := range lines {
 
 			log_timestamp, o := c.updateTarget(yymmdd, string(line))
-			c.updateMaximum(o)
+			c.updateMaximum(o, log_timestamp)
 			if current_timestamp == -1 {
 				current_timestamp = log_timestamp
 			}
@@ -168,6 +174,7 @@ func (c *Collector) ProcessStream(start string, end string) {
 			c.maybeCycleTargets(log_timestamp)
 
 			// Need something to remove expiration maximums once we have passed date.
+			c.maybeCycleMaximums(log_timestamp)
 
 			current_timestamp = log_timestamp
 			fmt.Printf("[%s][current_timestamp] %d\n", yymmdd, current_timestamp)
@@ -195,12 +202,17 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 	m := maximum{}
 	m.Expiration = o.Expiration
 	m.MaximumBid = o.Bid
+	m.OptionAsk = o.Ask
 	m.OptionBid = o.Bid
 	m.OptionSymbol = o.Symbol
+	m.OptionType = o.Type
 	m.Strike = o.Strike
 	m.Timestamp = timestamp
 	m.Underlying = o.Underlying
 	m.UnderlyingBid = s.Bid
+	m.Volume = o.Volume
+	m.OpenInterest = o.OpenInterest
+	m.MaxTimestamp = timestamp
 
 	_, expExists := c.maximums[o.Expiration]
 	if !expExists {
@@ -380,6 +392,62 @@ func (c *Collector) logError(functionName string, err interface{}) {
 	funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
 }
 
+func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
+	yymmdd := time.Unix(currentTimestamp, 0).Format("20060102")
+	for expiration, _ := range c.maximums {
+		// Not past expiration, do nothing.
+		if yymmdd <= expiration {
+			continue
+		}
+		edges := map[string]maximum{} // timestamp_symbol_o.Type, maximum
+
+		// Go through and calculate max of maxes.
+		for _, maxSlice := range c.maximums[expiration] {
+			for _, max := range maxSlice {
+				key := fmt.Sprintf("%d_%s_%s", max.Timestamp, max.Underlying, max.OptionType)
+				if edges[key].OptionAsk == 0 {
+					edges[key] = max
+					continue
+				}
+				if max.OptionAsk == 0 {
+					continue
+				}
+				if max.OptionType == "c" && max.Strike < max.UnderlyingBid {
+					continue
+				}
+				if max.OptionType == "p" && max.Strike > max.UnderlyingBid {
+					continue
+				}
+
+				// Original OptionAsk indicates what option could have been purchased for.
+				// MaximumBid indicates what option could have been sold for.
+				if (float64(max.MaximumBid) / float64(max.OptionAsk)) > (float64(edges[key].MaximumBid) / float64(edges[key].OptionAsk)) {
+					edges[key] = max
+				}
+			}
+		}
+
+		// Marshal.
+		d, err := json.MarshalIndent(edges, "", "  ")
+		if err != nil {
+			c.logError("maybeCycleMaximums", err)
+			return
+		}
+
+		// Save to c.livedir + "/edges/" + timestamp
+		path := c.livedir + "/edges"
+		filename := expiration
+		err = funcs.LazyWriteFile(path, filename, d)
+		if err != nil {
+			c.logError("maybeCycleMaximums", err)
+			return
+		}
+
+		// Delete.
+		delete(c.maximums, expiration)
+	}
+}
+
 func (c *Collector) maybeCycleTargets(current_timestamp int64) {
 	distance_from_target_time := float64(-1)
 	closeness := float64(-1)
@@ -473,7 +541,7 @@ func (c *Collector) SaveToLog(message interface{}) (string, string) {
 	return filename, line
 }
 
-func (c *Collector) updateMaximum(o structs.Option) {
+func (c *Collector) updateMaximum(o structs.Option, timestamp int64) {
 	// Don't do anything if nothing has been promoted for this expiration.
 	// All initialization happens inside addMaximum()
 	_, expExists := c.maximums[o.Expiration]
@@ -488,6 +556,7 @@ func (c *Collector) updateMaximum(o structs.Option) {
 	for idx, _ := range c.maximums[o.Expiration][o.Symbol] {
 		if o.Bid > c.maximums[o.Expiration][o.Symbol][idx].MaximumBid {
 			c.maximums[o.Expiration][o.Symbol][idx].MaximumBid = o.Bid
+			c.maximums[o.Expiration][o.Symbol][idx].MaxTimestamp = timestamp
 		}
 	}
 }
