@@ -22,7 +22,7 @@ type Collector struct {
 	livedir   string
 	logdir    string
 	errordir  string
-	maximums  map[string]map[string][]maximum // keyed off of (Expiration, OptionSymbol)
+	maximums  map[string]map[string][]structs.Maximum // keyed off of (Expiration, OptionSymbol)
 	pipe      chan structs.Message
 	replies   chan interface{}
 	rootdir   string
@@ -30,24 +30,6 @@ type Collector struct {
 	targets   map[string]map[string]target // "current", "next" for each SYMBOL.
 	timestamp string
 	Adapter   *tdameritrade.TDAmeritrade
-}
-
-type maximum struct {
-	// Fields used for Key-ing mapmapmap (or writing to file).
-	Expiration   string
-	OptionSymbol string
-	Timestamp    int64
-	Underlying   string
-
-	MaximumBid    int
-	OptionAsk     int
-	OptionBid     int
-	OptionType    string
-	Strike        int
-	UnderlyingBid int
-	Volume        int
-	OpenInterest  int
-	MaxTimestamp  int64
 }
 
 type target struct {
@@ -69,7 +51,7 @@ func New(id string, rootdir string) *Collector {
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
 
-	c.maximums = map[string]map[string][]maximum{}
+	c.maximums = map[string]map[string][]structs.Maximum{}
 
 	c.targets = map[string]map[string]target{}
 	c.targets["current"] = map[string]target{}
@@ -199,7 +181,7 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 		return fmt.Errorf("Expiration past. Distance: %d", expirationDistance)
 	}
 
-	m := maximum{}
+	m := structs.Maximum{}
 	m.Expiration = o.Expiration
 	m.MaximumBid = o.Bid
 	m.OptionAsk = o.Ask
@@ -211,16 +193,15 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 	m.Underlying = o.Underlying
 	m.UnderlyingBid = s.Bid
 	m.Volume = o.Volume
-	m.OpenInterest = o.OpenInterest
 	m.MaxTimestamp = timestamp
 
 	_, expExists := c.maximums[o.Expiration]
 	if !expExists {
-		c.maximums[o.Expiration] = map[string][]maximum{}
+		c.maximums[o.Expiration] = map[string][]structs.Maximum{}
 	}
 	_, optionSymbolExists := c.maximums[o.Expiration][o.Symbol]
 	if !optionSymbolExists {
-		c.maximums[o.Expiration][o.Symbol] = []maximum{}
+		c.maximums[o.Expiration][o.Symbol] = []structs.Maximum{}
 	}
 	c.maximums[o.Expiration][o.Symbol] = append(c.maximums[o.Expiration][o.Symbol], m)
 
@@ -331,8 +312,8 @@ func (c *Collector) dumpTargets() {
 	}
 }
 
-func (c *Collector) loadMaximums() map[string]map[string][]maximum {
-	maximums := map[string]map[string][]maximum{}
+func (c *Collector) loadMaximums() map[string]map[string][]structs.Maximum {
+	maximums := map[string]map[string][]structs.Maximum{}
 
 	path := c.livedir + "/maximums/current"
 	data, err := ioutil.ReadFile(path + "/" + c.id)
@@ -399,26 +380,42 @@ func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
 		if yymmdd <= expiration {
 			continue
 		}
-		edges := map[string]maximum{} // timestamp_symbol_o.Type, maximum
+		maxpath := c.livedir + "/maximums"
+		funcs.LazyWriteFile(maxpath, expiration, []byte(""))
+		edges := map[string]structs.Maximum{} // timestamp_symbol_o.Type, maximum
 
-		// Go through and calculate max of maxes.
+		// Write Edges and Maximums.
 		for _, maxSlice := range c.maximums[expiration] {
 			for _, max := range maxSlice {
-				key := fmt.Sprintf("%d_%s_%s", max.Timestamp, max.Underlying, max.OptionType)
-				if edges[key].OptionAsk == 0 {
-					edges[key] = max
+				if max.OptionAsk <= 0 {
 					continue
 				}
-				if max.OptionAsk == 0 {
+				// No idea how Volume could be negative, but not interested in finding out.
+				if max.Volume <= 0 {
 					continue
 				}
+				// Only want out-of-the-money options.
 				if max.OptionType == "c" && max.Strike < max.UnderlyingBid {
 					continue
 				}
 				if max.OptionType == "p" && max.Strike > max.UnderlyingBid {
 					continue
 				}
+				// Uninterested in non-max maximum.
+				if max.MaximumBid <= max.OptionAsk {
+					continue
+				}
+				// Maximums.
+				em, _ := funcs.Encode(&max, funcs.MaximumEncodingOrder)
+				funcs.LazyAppendFile(maxpath, expiration, em)
 
+				// Edges.
+				// Not sure if I even care about Edges anymore.
+				key := fmt.Sprintf("%d_%s_%s", max.Timestamp, max.Underlying, max.OptionType)
+				if edges[key].OptionAsk <= 0 {
+					edges[key] = max
+					continue
+				}
 				// Original OptionAsk indicates what option could have been purchased for.
 				// MaximumBid indicates what option could have been sold for.
 				if (float64(max.MaximumBid) / float64(max.OptionAsk)) > (float64(edges[key].MaximumBid) / float64(edges[key].OptionAsk)) {

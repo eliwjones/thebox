@@ -25,6 +25,23 @@ type Destination struct {
 	Type       util.ContractType // util.OPTION, util.STOCK
 }
 
+type Maximum struct {
+	// Fields used for Key-ing mapmapmap (or writing to file).
+	Expiration   string
+	OptionSymbol string
+	Timestamp    int64
+	Underlying   string
+
+	MaximumBid    int
+	OptionAsk     int
+	OptionBid     int
+	OptionType    string
+	Strike        int
+	UnderlyingBid int
+	Volume        int
+	MaxTimestamp  int64
+}
+
 // For now, intuitively setting all prices to cents.
 // Better not forget to convert to dollars on submission!
 type Option struct {

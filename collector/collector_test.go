@@ -286,7 +286,7 @@ func Test_Collector_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testin
 
 	c.dumpMaximums()
 
-	c.maximums = map[string]map[string][]maximum{}
+	c.maximums = map[string]map[string][]structs.Maximum{}
 
 	if reflect.DeepEqual(c.maximums, maximums) {
 		t.Errorf("Expected mismatched maximums!")

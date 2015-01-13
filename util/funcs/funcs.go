@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+var MaximumEncodingOrder = []string{"Timestamp", "OptionType", "Underlying", "OptionSymbol", "UnderlyingBid", "OptionAsk", "MaximumBid", "MaxTimestamp"}
 var OptionEncodingOrder = []string{"Underlying", "Symbol", "Expiration", "Time", "Strike", "Bid", "Ask", "Last", "Volume", "OpenInterest", "IV", "Type"}
 var StockEncodingOrder = []string{"Symbol", "Time", "Bid", "Ask", "Last", "High", "Low", "Volume"}
 

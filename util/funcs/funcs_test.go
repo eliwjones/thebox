@@ -8,6 +8,49 @@ import (
 	"time"
 )
 
+func Test_EncodeDecodeMaximum(t *testing.T) {
+	m := structs.Maximum{Expiration: "20150101", OptionSymbol: "GOOG_013015C610", Timestamp: int64(1000000001),
+		Underlying: "GOOG", MaximumBid: 100, OptionAsk: 50, OptionBid: 40, OptionType: "c", Strike: 610, UnderlyingBid: 50000, Volume: 100}
+	m.MaxTimestamp = m.Timestamp + int64(24*60*60)
+
+	em, err := Encode(&m, MaximumEncodingOrder)
+	if err != nil {
+		t.Errorf("Encode Maximum err: %s!", err)
+	}
+
+	m2 := structs.Maximum{}
+	err = Decode(em, &m2, MaximumEncodingOrder)
+	if err != nil {
+		t.Errorf("Decode Maximum err: %s!", err)
+	}
+
+	// Not sure why, but feel like spelling this out here.
+	if m2.Timestamp != m.Timestamp {
+		t.Errorf("Expected: %d, Got: %d", m.Timestamp, m2.Timestamp)
+	}
+	if m2.OptionType != m.OptionType {
+		t.Errorf("Expected: %s, Got: %s", m.OptionType, m2.OptionType)
+	}
+	if m2.Underlying != m.Underlying {
+		t.Errorf("Expected: %s, Got: %s", m.Underlying, m2.Underlying)
+	}
+	if m2.OptionSymbol != m.OptionSymbol {
+		t.Errorf("Expected: %s, Got: %s", m.OptionSymbol, m2.OptionSymbol)
+	}
+	if m2.UnderlyingBid != m.UnderlyingBid {
+		t.Errorf("Expected: %d, Got: %d", m.UnderlyingBid, m2.UnderlyingBid)
+	}
+	if m2.OptionAsk != m.OptionAsk {
+		t.Errorf("Expected: %d, Got: %d", m.OptionAsk, m2.OptionAsk)
+	}
+	if m2.MaximumBid != m.MaximumBid {
+		t.Errorf("Expected: %d, Got: %d", m.MaximumBid, m2.MaximumBid)
+	}
+	if m2.MaxTimestamp != m.MaxTimestamp {
+		t.Errorf("Expected: %d, Got: %d", m.MaxTimestamp, m2.MaxTimestamp)
+	}
+}
+
 func Test_EncodeDecodeOption(t *testing.T) {
 	o := structs.Option{Expiration: "20150101", Strike: 10000, Symbol: "20150101AA100PUT", Time: int64(1000), Type: "p",
 		Ask: 200, Bid: 100, IV: 1.111, Last: 150, OpenInterest: 1000, Underlying: "AA", Volume: 100}
