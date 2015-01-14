@@ -181,6 +181,22 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 		return fmt.Errorf("Expiration past. Distance: %d", expirationDistance)
 	}
 
+	// Filtering out uninteresting Options here.
+	if o.Ask <= 0 {
+		return nil
+	}
+	// No idea how Volume could be negative, but not interested in finding out.
+	if o.Volume <= 0 {
+		return nil
+	}
+	// Only want out-of-the-money options.
+	if o.Type == "c" && o.Strike < s.Bid {
+		return nil
+	}
+	if o.Type == "p" && o.Strike > s.Bid {
+		return nil
+	}
+
 	m := structs.Maximum{}
 	m.Expiration = o.Expiration
 	m.MaximumBid = o.Bid
@@ -387,20 +403,6 @@ func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
 		// Write Edges and Maximums.
 		for _, maxSlice := range c.maximums[expiration] {
 			for _, max := range maxSlice {
-				if max.OptionAsk <= 0 {
-					continue
-				}
-				// No idea how Volume could be negative, but not interested in finding out.
-				if max.Volume <= 0 {
-					continue
-				}
-				// Only want out-of-the-money options.
-				if max.OptionType == "c" && max.Strike < max.UnderlyingBid {
-					continue
-				}
-				if max.OptionType == "p" && max.Strike > max.UnderlyingBid {
-					continue
-				}
 				// Uninterested in non-max maximum.
 				if max.MaximumBid <= max.OptionAsk {
 					continue
@@ -424,17 +426,21 @@ func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
 			}
 		}
 
-		// Marshal.
-		d, err := json.MarshalIndent(edges, "", "  ")
-		if err != nil {
-			c.logError("maybeCycleMaximums", err)
-			return
+		// Encode.
+		encodedEdges := ""
+		for _, edge := range edges {
+			e, err := funcs.Encode(&edge, funcs.MaximumEncodingOrder)
+			if err != nil {
+				c.logError("maybeCycleMaximums", err)
+				continue
+			}
+			encodedEdges += e + "\n"
 		}
 
 		// Save to c.livedir + "/edges/" + timestamp
 		path := c.livedir + "/edges"
 		filename := expiration
-		err = funcs.LazyWriteFile(path, filename, d)
+		err := funcs.LazyWriteFile(path, filename, []byte(encodedEdges))
 		if err != nil {
 			c.logError("maybeCycleMaximums", err)
 			return
