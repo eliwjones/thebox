@@ -331,6 +331,50 @@ func (c *Collector) dumpTargets() {
 	}
 }
 
+func (c *Collector) getPastNEdges(utcTimestamp int64, n int) (pastNEdges []structs.Maximum) {
+	timestampID := utcTimestamp % int64(7*24*60*60)
+
+	pastNFridays := []time.Time{}
+	friday := funcs.SeekToNearestFriday(time.Unix(utcTimestamp, 0))
+	for i := 0; i < n; i++ {
+		friday = friday.AddDate(0, 0, -7)
+		pastNFridays = append(pastNFridays, friday)
+	}
+
+	for _, friday := range pastNFridays {
+		expiration := friday.Format("20060102")
+		filepath := c.livedir + "/edges/" + expiration
+		edgeData, err := ioutil.ReadFile(filepath)
+		if err != nil {
+			c.logError("getPastNEdges", err)
+			// Weekly Expiration may be old Saturday type.
+			expiration = friday.AddDate(0, 0, 1).Format("20060102")
+			filepath := c.livedir + "/edges/" + expiration
+			edgeData, err = ioutil.ReadFile(filepath)
+		}
+		if err != nil {
+			c.logError("getPastNEdges", err)
+			continue
+		}
+		// Have edges.. look for appropriate one.
+		for _, edge := range bytes.Split(edgeData, []byte("\n")) {
+			e := structs.Maximum{}
+			err := funcs.Decode(string(edge), &e, funcs.MaximumEncodingOrder)
+			if err != nil {
+				continue
+			}
+			edgeID := e.Timestamp % int64(7*24*60*60)
+			if edgeID != timestampID {
+				continue
+			}
+			e.Expiration = expiration
+			pastNEdges = append(pastNEdges, e)
+		}
+	}
+
+	return pastNEdges
+}
+
 func (c *Collector) loadMaximums() map[string]map[string][]structs.Maximum {
 	maximums := map[string]map[string][]structs.Maximum{}
 

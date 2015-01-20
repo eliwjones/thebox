@@ -91,6 +91,22 @@ func Test_Collector_dumpTargets(t *testing.T) {
 	c.dumpTargets()
 }
 
+func Test_Collector_getPastNEdges(t *testing.T) {
+	c := New("test", "./testdir")
+	// Randomly looked up timestamp that had edges for past N expirations.
+	timestamp := int64(1421257800)
+	pastNEdges := c.getPastNEdges(timestamp, 4)
+	expirations := map[string]bool{}
+
+	for _, edge := range pastNEdges {
+		expirations[edge.Expiration] = true
+	}
+
+	if len(expirations) != 4 {
+		t.Errorf("Expected %d Expirations! Got: %v", 4, expirations)
+	}
+}
+
 func Test_Collector_loadTargets(t *testing.T) {
 	c := New("test", "./testdir")
 
@@ -106,7 +122,7 @@ func Test_Collector_loadTargets(t *testing.T) {
 		t.Errorf("Not expecting 'next' targets.")
 	}
 
-	os.RemoveAll("./testdir/live")
+	os.RemoveAll(c.livedir + "/targets")
 }
 
 func Test_Collector_isNear(t *testing.T) {
@@ -156,8 +172,8 @@ func Test_Collector_isNear(t *testing.T) {
 }
 
 func Test_Collector_logError(t *testing.T) {
-	os.RemoveAll("./testdir/error")
 	c := New("test", "./testdir")
+	os.RemoveAll(c.errordir)
 	c.logError("testfunc", fmt.Errorf("Test error of type 'error'"))
 	c.logError("testfunc", "Test error of type 'string'")
 }
@@ -197,9 +213,8 @@ func Test_Collector_maybeCycleTargets(t *testing.T) {
 
 // Mainly, wish to verify maximums is updated.
 func Test_Collector_promoteTarget(tst *testing.T) {
-	os.RemoveAll("./testdir/live/maximums")
-
 	c := New("test", "./testdir")
+	os.RemoveAll(c.livedir + "/maximums")
 
 	exp := "20150130"
 	symbol := "GOOG_013015C600"
