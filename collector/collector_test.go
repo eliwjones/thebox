@@ -95,15 +95,24 @@ func Test_Collector_getPastNEdges(t *testing.T) {
 	c := New("test", "./testdir")
 	// Randomly looked up timestamp that had edges for past N expirations.
 	timestamp := int64(1421257800)
-	pastNEdges := c.getPastNEdges(timestamp, 4)
+	n := 4
+	pastNEdges := c.getPastNEdges(timestamp, n)
 	expirations := map[string]bool{}
 
-	for _, edge := range pastNEdges {
-		expirations[edge.Expiration] = true
+	for edgeKey, edges := range pastNEdges {
+		for _, edge := range edges {
+			if edge.Expiration == "" {
+				continue
+			}
+			expirations[edge.Expiration] = true
+		}
+		if len(edges) != n {
+			t.Errorf("Expected %d edges for %s! Got: %d", n, edgeKey, len(edges))
+		}
 	}
 
-	if len(expirations) != 4 {
-		t.Errorf("Expected %d Expirations! Got: %v", 4, expirations)
+	if len(expirations) != n {
+		t.Errorf("Expected %d Expirations! Got: %v", n, len(expirations))
 	}
 }
 

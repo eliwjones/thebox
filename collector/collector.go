@@ -331,8 +331,10 @@ func (c *Collector) dumpTargets() {
 	}
 }
 
-func (c *Collector) getPastNEdges(utcTimestamp int64, n int) (pastNEdges []structs.Maximum) {
-	timestampID := utcTimestamp % int64(7*24*60*60)
+func (c *Collector) getPastNEdges(utcTimestamp int64, n int) (pastNEdges map[string][]structs.Maximum) {
+	// pastNEdges["<Underlying>_<option.type>_<edgeID>"][]structs.Maximum{}
+
+	pastNEdges = map[string][]structs.Maximum{}
 
 	pastNFridays := []time.Time{}
 	friday := funcs.SeekToNearestFriday(time.Unix(utcTimestamp, 0))
@@ -363,12 +365,22 @@ func (c *Collector) getPastNEdges(utcTimestamp int64, n int) (pastNEdges []struc
 			if err != nil {
 				continue
 			}
-			edgeID := e.Timestamp % int64(7*24*60*60)
-			if edgeID != timestampID {
-				continue
-			}
+			// Underlying_TimestampID
+			edgeKey := getEdgeKey(e)
 			e.Expiration = expiration
-			pastNEdges = append(pastNEdges, e)
+			pastNEdges[edgeKey] = append(pastNEdges[edgeKey], e)
+		}
+	}
+	// Fill in gaps.
+	//    I.e. if edges exist for an Underlying_optionType_edgeID, there must be N of them.
+	// Amount of contortions happening is starting to smell bad.
+	for edgeKey, edges := range pastNEdges {
+		m := len(edges)
+		if m == n {
+			continue
+		}
+		for i := 0; i < n-m; i++ {
+			pastNEdges[edgeKey] = append(pastNEdges[edgeKey], structs.Maximum{Underlying: getUnderlyingFromEdgeKey(edgeKey)})
 		}
 	}
 
@@ -751,6 +763,19 @@ func encodeTarget(t target) (string, string, error) {
 		lines += fmt.Sprintf("\n%d,o,%s", hhmmss_in_seconds, eo)
 	}
 	return fmt.Sprintf("%d", yymmdd_in_seconds), lines, nil
+}
+
+func getTimestampID(timestamp int64) int64 {
+	return timestamp % int64(7*24*60*60)
+}
+
+func getEdgeKey(e structs.Maximum) string {
+	edgeID := getTimestampID(e.Timestamp)
+	return fmt.Sprintf("%s_%s_%d", e.Underlying, e.OptionType, edgeID)
+}
+
+func getUnderlyingFromEdgeKey(edgeKey string) string {
+	return strings.Split(edgeKey, "_")[0]
 }
 
 func getTenMinTimestamp(timestamp int64) int64 {
