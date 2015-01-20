@@ -87,8 +87,10 @@ func (c *Collector) RunOnce() {
 			logTimestamp, _type, encodedEquity := c.parseLogLine(yyyymmdd, string(line))
 
 			// Update the things.
-			o, _ := c.updateTarget(logTimestamp, _type, encodedEquity)
-			c.updateMaximum(o, logTimestamp)
+			o, err := c.updateTarget(logTimestamp, _type, encodedEquity)
+			if err == nil {
+				c.updateMaximum(o, logTimestamp)
+			}
 		}
 	}()
 
@@ -150,16 +152,18 @@ func (c *Collector) ProcessStream(start string, end string) {
 				fmt.Printf("[%s][current_timestamp] %d\n", yyyymmdd, currentTimestamp)
 			}
 			o, err := c.updateTarget(logTimestamp, _type, encodedEquity)
-			if err != nil {
-				continue
+			if err == nil {
+				c.updateMaximum(o, logTimestamp)
 			}
-			c.updateMaximum(o, logTimestamp)
-
 			currentTimestamp = logTimestamp
 		}
+		// Just in case fate is frowning on us.  (This should be almost always unnecessary.)
 		c.maybeCycleTargets(currentTimestamp)
 		c.maybeCycleMaximums(currentTimestamp)
-		currentTimestamp = int64(-1)
+
+		// Reset targets.. since they don't carry over into new days.
+		c.targets["current"] = map[string]target{}
+		c.targets["next"] = map[string]target{}
 	}
 	c.dumpTargets()
 	c.dumpMaximums()
@@ -649,7 +653,7 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) erro
 	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
 	near, distance := isNear(hhmmss_in_seconds, s.Time, 45)
 	if !near {
-		return fmt.Errorf("%d seconds is too far away.", distance)
+		return fmt.Errorf("%d seconds is too far away. hhmmss_in_seconds: %d", distance, hhmmss_in_seconds)
 	}
 
 	utc_interval := getTenMinTimestamp(utc_timestamp)
