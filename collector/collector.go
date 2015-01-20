@@ -82,11 +82,13 @@ func (c *Collector) RunOnce() {
 			}
 
 			// Save to log of all things
-			yymmdd, line := c.SaveToLog(message.Data)
+			yyyymmdd, line := c.SaveToLog(message.Data)
+
+			logTimestamp, _type, encodedEquity := c.parseLogLine(yyyymmdd, string(line))
 
 			// Update the things.
-			log_timestamp, o := c.updateTarget(yymmdd, line)
-			c.updateMaximum(o, log_timestamp)
+			o, _ := c.updateTarget(logTimestamp, _type, encodedEquity)
+			c.updateMaximum(o, logTimestamp)
 		}
 	}()
 
@@ -129,10 +131,10 @@ func (c *Collector) ProcessStream(start string, end string) {
 		current = t.Format("20060102")
 	}
 
-	current_timestamp := int64(-1)
-	for _, yymmdd := range sorted_days {
-		fmt.Println("******************************" + yymmdd + "*******************************")
-		log_data, err := ioutil.ReadFile(c.logdir + "/" + yymmdd)
+	currentTimestamp := int64(-1)
+	for _, yyyymmdd := range sorted_days {
+		fmt.Println("******************************" + yyyymmdd + "*******************************")
+		log_data, err := ioutil.ReadFile(c.logdir + "/" + yyyymmdd)
 		if err != nil {
 			fmt.Println(err)
 			continue
@@ -140,27 +142,24 @@ func (c *Collector) ProcessStream(start string, end string) {
 
 		lines := bytes.Split(log_data, []byte("\n"))
 		for _, line := range lines {
+			logTimestamp, _type, encodedEquity := c.parseLogLine(yyyymmdd, string(line))
+			if logTimestamp != currentTimestamp && currentTimestamp != -1 {
+				c.maybeCycleTargets(currentTimestamp)
+				c.maybeCycleMaximums(currentTimestamp)
 
-			log_timestamp, o := c.updateTarget(yymmdd, string(line))
-			c.updateMaximum(o, log_timestamp)
-			if current_timestamp == -1 {
-				current_timestamp = log_timestamp
+				fmt.Printf("[%s][current_timestamp] %d\n", yyyymmdd, currentTimestamp)
 			}
-			if log_timestamp == current_timestamp {
+			o, err := c.updateTarget(logTimestamp, _type, encodedEquity)
+			if err != nil {
 				continue
 			}
-			if log_timestamp == -1 {
-				continue
-			}
-			// log_timestamp has surpassed current_timestamp.
-			c.maybeCycleTargets(log_timestamp)
+			c.updateMaximum(o, logTimestamp)
 
-			// Need something to remove expiration maximums once we have passed date.
-			c.maybeCycleMaximums(log_timestamp)
-
-			current_timestamp = log_timestamp
-			fmt.Printf("[%s][current_timestamp] %d\n", yymmdd, current_timestamp)
+			currentTimestamp = logTimestamp
 		}
+		c.maybeCycleTargets(currentTimestamp)
+		c.maybeCycleMaximums(currentTimestamp)
+		currentTimestamp = int64(-1)
 	}
 	c.dumpTargets()
 	c.dumpMaximums()
@@ -183,18 +182,18 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 
 	// Filtering out uninteresting Options here.
 	if o.Ask <= 0 {
-		return nil
+		return fmt.Errorf("Not interested in options with Ask <= 0.")
 	}
 	// No idea how Volume could be negative, but not interested in finding out.
 	if o.Volume <= 0 {
-		return nil
+		return fmt.Errorf("Not interested in options with Volume <= 0.")
 	}
 	// Only want out-of-the-money options.
 	if o.Type == "c" && o.Strike < s.Bid {
-		return nil
+		return fmt.Errorf("Not interested in out-of-the-money options.")
 	}
 	if o.Type == "p" && o.Strike > s.Bid {
-		return nil
+		return fmt.Errorf("Not interested in out-of-the-money options.")
 	}
 
 	m := structs.Maximum{}
@@ -495,6 +494,28 @@ func (c *Collector) maybeCycleTargets(current_timestamp int64) {
 	}
 }
 
+func (c *Collector) parseLogLine(yyyymmdd string, line string) (utcTimestamp int64, _type string, encodedEquity string) {
+	t, _ := time.Parse("20060102", yyyymmdd)
+	yyyymmdd_in_seconds := t.Unix()
+
+	columns := strings.Split(line, ",")
+	if len(columns) < 3 {
+		return -1, "", ""
+	}
+
+	hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
+	if err != nil {
+		c.logError("parseLogLine", err)
+		return -1, "", ""
+	}
+
+	utcTimestamp = yyyymmdd_in_seconds + hhmmss_in_seconds
+	_type = columns[1]
+	encodedEquity = strings.Join(columns[2:], ",")
+
+	return utcTimestamp, _type, encodedEquity
+}
+
 func (c *Collector) promoteTarget(t target) {
 	if t.Stock.Symbol == "" {
 		message := fmt.Sprintf("Empty Target, Discarding, t.Timestamp: %d", t.Timestamp)
@@ -564,51 +585,29 @@ func (c *Collector) updateMaximum(o structs.Option, timestamp int64) {
 	}
 }
 
-func (c *Collector) updateTarget(yymmdd string, line string) (int64, structs.Option) {
-	// Always return Option struct for possible use by updateMaximum()
-	o := structs.Option{}
-
-	t, _ := time.Parse("20060102", yymmdd)
-	yymmdd_in_seconds := t.Unix()
-
-	columns := strings.Split(line, ",")
-	if len(columns) < 3 {
-		return -1, o
-	}
-
-	hhmmss_in_seconds, err := strconv.ParseInt(columns[0], 10, 64)
-	if err != nil {
-		c.logError("updateTarget", err)
-		return -1, o
-	}
-
-	utc_timestamp := yymmdd_in_seconds + hhmmss_in_seconds
-
-	_type := columns[1]
-	equity := strings.Join(columns[2:], ",")
-
+func (c *Collector) updateTarget(utcTimestamp int64, _type string, encodedEquity string) (o structs.Option, err error) {
 	switch _type {
 	case "s":
 		s := structs.Stock{}
-		funcs.Decode(equity, &s, funcs.StockEncodingOrder)
+		funcs.Decode(encodedEquity, &s, funcs.StockEncodingOrder)
 
-		utc_timestamp = c.updateStockTarget(s, utc_timestamp)
+		err = c.updateStockTarget(s, utcTimestamp)
 	case "o":
-		funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
+		funcs.Decode(encodedEquity, &o, funcs.OptionEncodingOrder)
 
-		utc_timestamp = c.updateOptionTarget(o, utc_timestamp)
+		err = c.updateOptionTarget(o, utcTimestamp)
 	default:
 		c.logError("updateTarget", "Bad switch _type: "+_type)
 	}
 
-	return utc_timestamp, o
+	return o, err
 }
 
-func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) int64 {
+func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) error {
 	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
-	near, _ := isNear(hhmmss_in_seconds, o.Time, 45)
+	near, distance := isNear(hhmmss_in_seconds, o.Time, 45)
 	if !near {
-		return -1
+		return fmt.Errorf("%d seconds is too far away.", distance)
 	}
 
 	utc_interval := getTenMinTimestamp(utc_timestamp)
@@ -643,14 +642,14 @@ func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) in
 		c.targets["next"][o.Underlying] = next_target
 	}
 
-	return utc_timestamp
+	return nil
 }
 
-func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) int64 {
+func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) error {
 	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
-	near, _ := isNear(hhmmss_in_seconds, s.Time, 45)
+	near, distance := isNear(hhmmss_in_seconds, s.Time, 45)
 	if !near {
-		return -1
+		return fmt.Errorf("%d seconds is too far away.", distance)
 	}
 
 	utc_interval := getTenMinTimestamp(utc_timestamp)
@@ -684,7 +683,7 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) int6
 		c.targets["next"][s.Symbol] = next_target
 	}
 
-	return utc_timestamp
+	return nil
 }
 
 func encodeTarget(t target) (string, string, error) {

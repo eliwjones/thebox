@@ -212,7 +212,7 @@ func Test_Collector_promoteTarget(tst *testing.T) {
 	t.Stock.Bid = 600
 
 	t.Options = map[string]structs.Option{}
-	t.Options[symbol] = structs.Option{Symbol: symbol, Bid: 200, Strike: 60000, Underlying: "GOOG", Expiration: exp}
+	t.Options[symbol] = structs.Option{Symbol: symbol, Bid: 200, Ask: 300, Volume: 100, Strike: 60000, Underlying: "GOOG", Expiration: exp}
 
 	c.promoteTarget(t)
 
@@ -224,15 +224,21 @@ func Test_Collector_promoteTarget(tst *testing.T) {
 func Test_Collector_updateTarget(t *testing.T) {
 	c := New("test", "./testdir")
 
-	line := "75600,o,GOOG,GOOG_011715P655,20150117,57600,65500,15000,15410,7220,0,1,0.00000,p"
-	timestamp, o := c.updateTarget("20150101", line)
+	t1, _ := time.Parse("20060102 15:04", "20150101 21:00")
+	utcTimestamp := t1.Unix()
+	encodedEquity := "GOOG,GOOG_011715P655,20150117,57600,65500,15000,15410,7220,0,1,0.00000,p"
+	o, err := c.updateTarget(utcTimestamp, "o", encodedEquity)
+
+	if err != nil {
+		t.Errorf("Got err: %s", err)
+	}
 
 	if !reflect.DeepEqual(c.targets["current"][o.Underlying].Options[o.Symbol], o) {
 		t.Errorf("Expected: %v, Got: %v", o, c.targets["current"][o.Underlying].Options[o.Symbol])
 	}
 
-	if c.targets["current"][o.Underlying].Timestamp != timestamp {
-		t.Errorf("Expected: %v, Got: %v", timestamp, c.targets["current"][o.Underlying].Timestamp)
+	if c.targets["current"][o.Underlying].Timestamp != utcTimestamp {
+		t.Errorf("Expected: %v, Got: %v", utcTimestamp, c.targets["current"][o.Underlying].Timestamp)
 	}
 }
 
@@ -249,7 +255,7 @@ func Test_Collector_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testin
 	}
 
 	s := structs.Stock{Symbol: "GOOG", Bid: 60000}
-	o := structs.Option{Symbol: symbol, Bid: 500, Strike: 60000, Underlying: "GOOG", Expiration: exp}
+	o := structs.Option{Symbol: symbol, Bid: 500, Ask: 600, Volume: 100, Strike: 60000, Underlying: "GOOG", Expiration: exp}
 
 	err := c.addMaximum(o, s, ts)
 	if err == nil {
