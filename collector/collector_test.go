@@ -93,26 +93,25 @@ func Test_Collector_dumpTargets(t *testing.T) {
 
 func Test_Collector_getPastNEdges(t *testing.T) {
 	c := New("test", "./testdir")
-	// Randomly looked up timestamp that had edges for past N expirations.
+
 	timestamp := int64(1421257800)
 	n := 4
-	pastNEdges := c.getPastNEdges(timestamp, n)
+	edges := c.getPastNEdges(timestamp, n)
 	expirations := map[string]bool{}
 
-	for edgeKey, edges := range pastNEdges {
-		for _, edge := range edges {
-			if edge.Expiration == "" {
-				continue
-			}
-			expirations[edge.Expiration] = true
+	for _, edge := range edges {
+		if edge.Expiration == "" {
+			continue
 		}
-		if len(edges) != n {
-			t.Errorf("Expected %d edges for %s! Got: %d", n, edgeKey, len(edges))
-		}
+		expirations[edge.Expiration] = true
 	}
 
 	if len(expirations) != n {
 		t.Errorf("Expected %d Expirations! Got: %v", n, len(expirations))
+	}
+
+	if len(edges)%4 != 0 {
+		t.Errorf("Expected len(edges) to be multiple of four.  Got: %d!", len(edges))
 	}
 }
 
