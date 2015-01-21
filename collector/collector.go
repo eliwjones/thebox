@@ -24,6 +24,7 @@ type Collector struct {
 	logdir    string
 	errordir  string
 	maximums  map[string]map[string][]structs.Maximum // keyed off of (Expiration, OptionSymbol)
+	period    int64
 	pipe      chan structs.Message
 	replies   chan interface{}
 	rootdir   string
@@ -55,7 +56,7 @@ func (m ByTimestampID) Less(i, j int) bool {
 	return idI < idJ
 }
 
-func New(id string, rootdir string) *Collector {
+func New(id string, rootdir string, period int64) *Collector {
 	c := &Collector{}
 
 	c.id = id
@@ -64,6 +65,7 @@ func New(id string, rootdir string) *Collector {
 	c.logdir = fmt.Sprintf("%s/log", rootdir)
 	c.errordir = fmt.Sprintf("%s/error", rootdir)
 
+	c.period = period
 	c.pipe = make(chan structs.Message, 10000)
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
@@ -80,6 +82,10 @@ func New(id string, rootdir string) *Collector {
 }
 
 func (c *Collector) RunOnce() {
+	// Must panic if RunOnce() takes longer than 50 seconds?
+	// Longer than cron period will result in out-of-order log entries.
+	startTime := time.Now().UTC().Unix()
+
 	// Deserialize from disk.
 	c.targets = c.loadTargets()
 	c.maximums = c.loadMaximums()
@@ -96,6 +102,11 @@ func (c *Collector) RunOnce() {
 			if message.Data == nil {
 				message.Reply <- true
 				continue
+			}
+			if time.Now().UTC().Unix()-startTime > (c.period - 10) {
+				panicMessage := fmt.Sprintf("We are too close to the collector period of %d seconds. Panicking", c.period)
+				c.logError("RunOnce", panicMessage)
+				panic(panicMessage)
 			}
 
 			// Save to log of all things

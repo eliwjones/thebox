@@ -13,7 +13,7 @@ import (
 )
 
 func Test_Collector_collect(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 
 	// Suppose may need some sort of LoadAdapterFromConfig() function somewhere.
 	lines, _ := funcs.GetConfig(c.rootdir + "/config")
@@ -82,7 +82,7 @@ func Test_Collector_collect(t *testing.T) {
 }
 
 func Test_Collector_dumpTargets(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 
 	c.targets = map[string]map[string]target{"current": map[string]target{}, "next": map[string]target{}}
 	c.targets["current"]["AAPL"] = target{Timestamp: int64(1234567890)}
@@ -92,7 +92,7 @@ func Test_Collector_dumpTargets(t *testing.T) {
 }
 
 func Test_Collector_getPastNEdges(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 
 	timestamp := int64(1421257800)
 	n := 4
@@ -116,7 +116,7 @@ func Test_Collector_getPastNEdges(t *testing.T) {
 }
 
 func Test_Collector_loadTargets(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 
 	targets := c.loadTargets()
 
@@ -180,19 +180,19 @@ func Test_Collector_isNear(t *testing.T) {
 }
 
 func Test_Collector_logError(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 	os.RemoveAll(c.errordir)
 	c.logError("testfunc", fmt.Errorf("Test error of type 'error'"))
 	c.logError("testfunc", "Test error of type 'string'")
 }
 
 func Test_Collector_maybeCycleMaximums(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 	c.maybeCycleMaximums(int64(1000))
 }
 
 func Test_Collector_maybeCycleTargets(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 	start_ts := int64(10 * 60)
 	next_ts := start_ts + int64(10*60)
 	c.targets["current"]["GOOG"] = target{Timestamp: start_ts}
@@ -221,7 +221,7 @@ func Test_Collector_maybeCycleTargets(t *testing.T) {
 
 // Mainly, wish to verify maximums is updated.
 func Test_Collector_promoteTarget(tst *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 	os.RemoveAll(c.livedir + "/maximums")
 
 	exp := "20150130"
@@ -245,7 +245,7 @@ func Test_Collector_promoteTarget(tst *testing.T) {
 }
 
 func Test_Collector_updateTarget(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 
 	t1, _ := time.Parse("20060102 15:04", "20150101 21:00")
 	utcTimestamp := t1.Unix()
@@ -267,7 +267,7 @@ func Test_Collector_updateTarget(t *testing.T) {
 
 // Kitchen sinking this since don't want to do over and over.
 func Test_Collector_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
-	c := New("test", "./testdir")
+	c := New("test", "./testdir", int64(60))
 	exp := "20150130"
 	symbol := "GOOG_013015C600"
 	t1, _ := time.Parse("20060102 15:04", "20150123 21:00")
