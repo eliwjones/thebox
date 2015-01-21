@@ -110,8 +110,8 @@ func Test_Collector_getPastNEdges(t *testing.T) {
 		t.Errorf("Expected %d Expirations! Got: %v", n, len(expirations))
 	}
 
-	if len(edges)%4 != 0 {
-		t.Errorf("Expected len(edges) to be multiple of four.  Got: %d!", len(edges))
+	if len(edges)%n != 0 {
+		t.Errorf("Expected len(edges) to be multiple of %d.  Got: %d!", n, len(edges))
 	}
 }
 
