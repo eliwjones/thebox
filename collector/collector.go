@@ -406,8 +406,11 @@ func (c *Collector) getPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 		if m == n {
 			continue
 		}
+		optionType := getOptionTypeFromEdgeKey(edgeKey)
+		tsID := getTimestampIDFromEdgeKey(edgeKey)
+		underlyingSymbol := getUnderlyingFromEdgeKey(edgeKey)
 		for i := 0; i < n-m; i++ {
-			edgeMap[edgeKey] = append(edgeMap[edgeKey], structs.Maximum{Underlying: getUnderlyingFromEdgeKey(edgeKey), Timestamp: getTimestampIDFromEdgeKey(edgeKey)})
+			edgeMap[edgeKey] = append(edgeMap[edgeKey], structs.Maximum{Underlying: underlyingSymbol, OptionType: optionType, Timestamp: tsID})
 		}
 	}
 
@@ -801,6 +804,10 @@ func encodeTarget(t target) (string, string, error) {
 func getEdgeKey(e structs.Maximum) string {
 	edgeID := getTimestampID(e.Timestamp)
 	return fmt.Sprintf("%s_%s_%d", e.Underlying, e.OptionType, edgeID)
+}
+
+func getOptionTypeFromEdgeKey(edgeKey string) string {
+	return strings.Split(edgeKey, "_")[1]
 }
 
 func getTimestampID(timestamp int64) int64 {
