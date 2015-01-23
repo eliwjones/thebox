@@ -619,12 +619,13 @@ func (c *Collector) promoteTarget(t target) {
 		return
 	}
 
-	yymmdd_in_seconds, lines, err := encodeTarget(t)
+	lines, err := encodeTarget(t)
 	if err != nil {
 		c.logError("promoteTarget", err)
 		return
 	}
-	funcs.LazyAppendFile(c.livedir+"/data", yymmdd_in_seconds, lines)
+	yyyymmdd := time.Unix(t.Timestamp, 0).Format("20060102")
+	funcs.LazyAppendFile(c.livedir+"/quotes", yyyymmdd, lines)
 
 	// touch appropriate /live/timestamp/<ts> filename.
 	ts := fmt.Sprintf("%d", t.Timestamp)
@@ -782,23 +783,20 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) erro
 	return nil
 }
 
-func encodeTarget(t target) (string, string, error) {
-	yymmdd_in_seconds := t.Timestamp - (t.Timestamp % (24 * 60 * 60))
-	hhmmss_in_seconds := t.Timestamp - yymmdd_in_seconds
-
+func encodeTarget(t target) (string, error) {
 	es, err := funcs.Encode(&t.Stock, funcs.StockEncodingOrder)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	lines := fmt.Sprintf("%d,s,%s", hhmmss_in_seconds, es)
+	lines := fmt.Sprintf("%d,s,%s", t.Timestamp, es)
 	for _, o := range t.Options {
 		eo, err := funcs.Encode(&o, funcs.OptionEncodingOrder)
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
-		lines += fmt.Sprintf("\n%d,o,%s", hhmmss_in_seconds, eo)
+		lines += fmt.Sprintf("\n%d,o,%s", t.Timestamp, eo)
 	}
-	return fmt.Sprintf("%d", yymmdd_in_seconds), lines, nil
+	return lines, nil
 }
 
 func getEdgeKey(e structs.Maximum) string {
