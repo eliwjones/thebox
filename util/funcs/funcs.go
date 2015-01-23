@@ -108,6 +108,12 @@ func GetConfig(path string) ([]string, error) {
 	return lines, nil
 }
 
+func LastSunday(t time.Time) time.Time {
+	distance := int(time.Sunday) - int(t.Weekday())
+
+	return t.AddDate(0, 0, distance)
+}
+
 func LazyAppendFile(folderName string, fileName string, data string) error {
 	f, err := os.OpenFile(folderName+"/"+fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
@@ -159,20 +165,17 @@ func ClockTimeInSeconds(hhmmss string) int64 {
 	return t.Unix() - t.Truncate(24*time.Hour).Unix()
 }
 
-func SeekToNearestFriday(t time.Time) time.Time {
-	if t.Weekday() == time.Friday {
-		return t
+func NextFriday(t time.Time) time.Time {
+	distance := int(time.Friday) - int(t.Weekday())
+	if distance < 0 {
+		distance += 7
 	}
-	for {
-		t = t.AddDate(0, 0, 1)
-		if t.Weekday() == time.Friday {
-			return t
-		}
-	}
+	return t.AddDate(0, 0, distance)
 }
 
 func TimestampID(timestamp int64) int64 {
-	return timestamp % int64(7*24*60*60)
+	// How many seconds into the week are we?
+	return timestamp - WeekID(timestamp)
 }
 
 func UpdateConfig(path string, lines []string) error {
@@ -182,5 +185,6 @@ func UpdateConfig(path string, lines []string) error {
 }
 
 func WeekID(timestamp int64) int64 {
-	return timestamp - TimestampID(timestamp)
+	sunday := LastSunday(time.Unix(timestamp, 0).UTC())
+	return sunday.Truncate(24*time.Hour).Unix()
 }

@@ -138,20 +138,41 @@ func Test_getConfig(t *testing.T) {
 	}
 }
 
-func Test_SeekToNearestFriday(t *testing.T) {
+func Test_LastSunday(t *testing.T) {
+	t1 := time.Now().UTC()
+
+	if LastSunday(t1).Weekday() != time.Sunday {
+		t.Errorf("Expected: Sunday, Got: %s", LastSunday(t1).Weekday())
+	}
+
+	if LastSunday(t1) != LastSunday(LastSunday(t1)) {
+		t.Errorf("Expected: %s, Got: %s", LastSunday(t1), LastSunday(LastSunday(t1)))
+	}
+}
+
+func Test_NextFriday(t *testing.T) {
 	t1, _ := time.Parse("20060102", "20150107")
-	t2 := SeekToNearestFriday(t1)
+	t2 := NextFriday(t1)
 
 	if t2.Weekday() != time.Friday {
-		t.Errorf("Expected Friday, Got: %v", t2.Weekday)
+		t.Errorf("Expected Friday, Got: %v", t2.Weekday())
+	}
+	if t2.Unix()-t1.Unix() > int64(6*24*60*60) {
+		t.Errorf("Expected to be within 6 days.")
 	}
 
 	// Verify it returns same time if we are on a Friday.
-	t1, _ = time.Parse("20060102", "20150109")
-	t2 = SeekToNearestFriday(t1)
+	if t2 != NextFriday(t2) {
+		t.Errorf("Expected %v, Got %v", NextFriday(t2), t2)
+	}
 
-	if t2 != t1 {
-		t.Errorf("Expected %v, Got %v", t1, t2)
+	t1 = t2.AddDate(0, 0, 1)
+	t2 = NextFriday(t1)
+	if t2.Weekday() != time.Friday {
+		t.Errorf("Expected Friday, Got: %v", t2.Weekday())
+	}
+	if t2.Unix()-t1.Unix() > int64(6*24*60*60) {
+		t.Errorf("Expected to be within 6 days.")
 	}
 }
 
@@ -169,8 +190,21 @@ func Test_WeekID(t *testing.T) {
 	if ts == WeekID(ts) {
 		t.Errorf("Expected ts != WeekID(ts)")
 	}
+	if time.Unix(WeekID(ts), 0).UTC().Weekday() != time.Sunday {
+		t.Errorf("Expected Sunday, Got: %s, Time: %s", time.Unix(WeekID(ts), 0).Weekday(), time.Unix(WeekID(ts), 0).UTC())
+	}
 
 	if WeekID(ts) != WeekID(WeekID(ts)) {
-		t.Errorf("Expected  WeekID(ts) == WeekID(WeekID(ts))")
+		t.Errorf("Expected  %s == %s", time.Unix(WeekID(ts), 0), time.Unix(WeekID(WeekID(ts)), 0))
+	}
+
+	// Verify that Sunday - Saturday have same WeekID.
+	sunday := LastSunday(time.Now().UTC())
+	weekID := WeekID(sunday.Unix())
+	for i := 0; i < 7; i++ {
+		currentDay := sunday.AddDate(0, 0, i)
+		if WeekID(currentDay.Unix()) != weekID {
+			t.Errorf("Expected: %d, Got: %d for %s, %s", weekID, WeekID(currentDay.Unix()), currentDay, currentDay.Weekday())
+		}
 	}
 }

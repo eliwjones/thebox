@@ -364,7 +364,7 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	edgeMap := map[string][]structs.Maximum{}
 
 	pastNFridays := []time.Time{}
-	friday := funcs.SeekToNearestFriday(time.Unix(utcTimestamp, 0))
+	friday := funcs.NextFriday(time.Unix(utcTimestamp, 0).UTC())
 	for i := 0; i < n; i++ {
 		friday = friday.AddDate(0, 0, -7)
 		pastNFridays = append(pastNFridays, friday)
