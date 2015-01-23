@@ -45,8 +45,8 @@ type ByTimestampID []structs.Maximum
 func (m ByTimestampID) Len() int      { return len(m) }
 func (m ByTimestampID) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 func (m ByTimestampID) Less(i, j int) bool {
-	idI := getTimestampID(m[i].Timestamp)
-	idJ := getTimestampID(m[j].Timestamp)
+	idI := funcs.TimestampID(m[i].Timestamp)
+	idJ := funcs.TimestampID(m[j].Timestamp)
 	if idI == idJ {
 		if m[i].Timestamp == m[j].Timestamp {
 			return m[i].OptionType < m[j].OptionType
@@ -359,7 +359,7 @@ func (c *Collector) dumpTargets() {
 	}
 }
 
-func (c *Collector) getPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
+func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	// edgeMap["<Underlying>_<option.type>_<edgeID>"][]structs.Maximum{}
 	edgeMap := map[string][]structs.Maximum{}
 
@@ -802,16 +802,12 @@ func encodeTarget(t target) (string, string, error) {
 }
 
 func getEdgeKey(e structs.Maximum) string {
-	edgeID := getTimestampID(e.Timestamp)
+	edgeID := funcs.TimestampID(e.Timestamp)
 	return fmt.Sprintf("%s_%s_%d", e.Underlying, e.OptionType, edgeID)
 }
 
 func getOptionTypeFromEdgeKey(edgeKey string) string {
 	return strings.Split(edgeKey, "_")[1]
-}
-
-func getTimestampID(timestamp int64) int64 {
-	return timestamp % int64(7*24*60*60)
 }
 
 func getTimestampIDFromEdgeKey(edgeKey string) int64 {

@@ -91,12 +91,12 @@ func Test_Collector_dumpTargets(t *testing.T) {
 	c.dumpTargets()
 }
 
-func Test_Collector_getPastNEdges(t *testing.T) {
+func Test_Collector_GetPastNEdges(t *testing.T) {
 	c := New("test", "./testdir", int64(60))
 
 	timestamp := int64(1421257800)
 	n := 4
-	edges := c.getPastNEdges(timestamp, n)
+	edges := c.GetPastNEdges(timestamp, n)
 	expirations := map[string]bool{}
 
 	for _, edge := range edges {

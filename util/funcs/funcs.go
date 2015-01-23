@@ -3,6 +3,7 @@ package funcs
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"reflect"
 	"strconv"
@@ -19,6 +20,25 @@ var MS = func(time time.Time) int64 {
 }
 
 var Now = func() time.Time { return time.Now() }
+
+func ChooseMFromN(m int, n int) []int {
+	bag := []int{}
+	chosen := []int{}
+	for i := 0; i < n; i++ {
+		bag = append(bag, i)
+	}
+	if m >= n {
+		// Probably too clever and unnecessary..
+		// but, if one wants more than there is, one gets all there is.
+		return bag
+	}
+	for i := 0; i < m; i++ {
+		c := rand.Intn(len(bag))
+		chosen = append(chosen, bag[c])
+		bag = append(bag[:c], bag[c+1:]...)
+	}
+	return chosen
+}
 
 func Decode(eo string, c interface{}, encodingOrder []string) error {
 	r := reflect.ValueOf(c).Elem()
@@ -151,8 +171,16 @@ func SeekToNearestFriday(t time.Time) time.Time {
 	}
 }
 
+func TimestampID(timestamp int64) int64 {
+	return timestamp % int64(7*24*60*60)
+}
+
 func UpdateConfig(path string, lines []string) error {
 	f := []byte(strings.Join(lines, "\n"))
 	err := ioutil.WriteFile(path, f, 0777)
 	return err
+}
+
+func WeekID(timestamp int64) int64 {
+	return timestamp - TimestampID(timestamp)
 }

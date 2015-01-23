@@ -3,10 +3,23 @@ package funcs
 import (
 	"github.com/eliwjones/thebox/util/structs"
 
+	"math"
 	"reflect"
 	"testing"
 	"time"
 )
+
+func Test_ChooseMFromN(t *testing.T) {
+	j := 5
+	for i := 0; i < j+2; i++ {
+		bag := ChooseMFromN(i, j)
+		l := int(math.Min(float64(i), float64(j)))
+		if len(bag) != l {
+			t.Errorf("Expected bag of length %d! Got %d!", l, len(bag))
+		}
+
+	}
+}
 
 func Test_EncodeDecodeMaximum(t *testing.T) {
 	m := structs.Maximum{Expiration: "20150101", OptionSymbol: "GOOG_013015C610", Timestamp: int64(1000000001),
@@ -147,5 +160,17 @@ func Test_updateConfig(t *testing.T) {
 	err := UpdateConfig("config", lines)
 	if err != nil {
 		t.Errorf("Got err: %s!", err)
+	}
+}
+
+func Test_WeekID(t *testing.T) {
+	ts := int64(1422022200)
+
+	if ts == WeekID(ts) {
+		t.Errorf("Expected ts != WeekID(ts)")
+	}
+
+	if WeekID(ts) != WeekID(WeekID(ts)) {
+		t.Errorf("Expected  WeekID(ts) == WeekID(WeekID(ts))")
 	}
 }
