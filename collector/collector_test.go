@@ -115,6 +115,28 @@ func Test_Collector_GetPastNEdges(t *testing.T) {
 	}
 }
 
+func Test_Collector_GetQuotes(t *testing.T) {
+	// Munge off of collectord data.
+	c := New("test", "../cmd/collectord/testdir", int64(60))
+	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
+	utcTimestamp := t1.UTC().Unix()
+
+	quotes, err := c.GetQuotes(utcTimestamp, "AAPL")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	if len(quotes) == 0 {
+		t.Errorf("Expected more than 0 quotes.")
+	}
+	quotes, err = c.GetQuotes(utcTimestamp+int64(10*60), "AAPL")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	if len(quotes) == 0 {
+		t.Errorf("Expected more than 0 quotes.")
+	}
+}
+
 func Test_Collector_loadTargets(t *testing.T) {
 	c := New("test", "./testdir", int64(60))
 

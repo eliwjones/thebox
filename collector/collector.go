@@ -32,6 +32,11 @@ type Collector struct {
 	targets   map[string]map[string]target // "current", "next" for each SYMBOL.
 	timestamp string
 	Adapter   *tdameritrade.TDAmeritrade
+
+	// Most likely ill-advised lazy load structures.
+	quotes          map[int64][]structs.Option
+	quoteNamespace  string // restrict to first underlying requested.
+	lastQuoteYYMMDD string // track so can reload on new request.
 }
 
 type target struct {
@@ -423,6 +428,56 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	return pastNEdges
 }
 
+func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.Option, error) {
+	// Lazy load entire day and stuff into map[int64][]structs.Option{} ??
+	// Only allow GetQuotes() one underlying symbol per collector instance. ??
+	if c.quoteNamespace == "" {
+		c.quoteNamespace = underlying
+	} else if c.quoteNamespace != underlying {
+		panic("Only allowed to read from one underlying per collector instance.")
+	}
+	utcTime := time.Unix(utcTimestamp, 0).UTC()
+	yyyymmdd := utcTime.Format("20060102")
+	if c.lastQuoteYYMMDD == yyyymmdd {
+		return c.quotes[utcTimestamp], nil
+	}
+
+	// Gigantic race condition without something blocking.. or some sort of channel controlling access to this.
+
+	c.quotes = map[int64][]structs.Option{}
+
+	thisFriday := funcs.NextFriday(utcTime).Format("20060102")
+	thisSaturday := funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
+
+	// load livedir /quotes/yyyymmdd, decode, and filter by underlying, expiration.
+	quoteData, err := ioutil.ReadFile(c.livedir + "/quotes/" + yyyymmdd)
+	if err != nil {
+		return []structs.Option{}, err
+	}
+	for _, line := range bytes.Split(quoteData, []byte("\n")) {
+		ts, _type, encodedEquity := c.parseQuoteLine(string(line))
+		if ts == -1 || _type != "o" {
+			continue
+		}
+		o := structs.Option{}
+		funcs.Decode(encodedEquity, &o, funcs.OptionEncodingOrder)
+		if o.Underlying != underlying {
+			continue
+		}
+		if o.Expiration != thisFriday && o.Expiration != thisSaturday {
+			continue
+		}
+
+		// Have proper expiration and underlying.
+		c.quotes[ts] = append(c.quotes[ts], o)
+
+	}
+
+	c.lastQuoteYYMMDD = yyyymmdd
+
+	return c.quotes[utcTimestamp], nil
+}
+
 func (c *Collector) loadMaximums() map[string]map[string][]structs.Maximum {
 	maximums := map[string]map[string][]structs.Maximum{}
 
@@ -606,6 +661,23 @@ func (c *Collector) parseLogLine(yyyymmdd string, line string) (utcTimestamp int
 	}
 
 	utcTimestamp = yyyymmdd_in_seconds + hhmmss_in_seconds
+	_type = columns[1]
+	encodedEquity = strings.Join(columns[2:], ",")
+
+	return utcTimestamp, _type, encodedEquity
+}
+
+func (c *Collector) parseQuoteLine(line string) (utcTimestamp int64, _type string, encodedEquity string) {
+	columns := strings.Split(line, ",")
+	if len(columns) < 3 {
+		return -1, "", ""
+	}
+	utcTimestamp, err := strconv.ParseInt(columns[0], 10, 64)
+	if err != nil {
+		c.logError("parseLogLine", err)
+		return -1, "", ""
+	}
+
 	_type = columns[1]
 	encodedEquity = strings.Join(columns[2:], ",")
 
