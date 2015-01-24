@@ -12,11 +12,12 @@ import (
 
 type Destiny struct {
 	collector      *collector.Collector
-	dataDir        string // top level dir for data.
-	edges          map[int64][]structs.Maximum
+	dataDir        string                      // top level dir for data.
+	edges          map[int64][]structs.Maximum // edges keyed by TimestampID().
 	edgeMultiplier int
 	id             string     // allows for namespacing and multiple simulation runs.
-	pulses         chan int64 // timestamps from pulsar come here.
+	Pulses         chan int64 // timestamps from pulsar come here.
+	PulsarReply    chan int64 // Reply back to Pulsar when done doing work.
 	underlying     string
 	weeksBack      int
 }
@@ -25,7 +26,7 @@ func New(collector *collector.Collector, dataDir string, edgeMultiplier int, id 
 	d := &Destiny{id: id, dataDir: dataDir, edgeMultiplier: edgeMultiplier,
 		underlying: underlying, weeksBack: weeksBack}
 	d.edges = map[int64][]structs.Maximum{}
-	d.pulses = make(chan int64, 1000)
+	d.Pulses = make(chan int64, 1000)
 
 	go d.processPulses()
 
@@ -34,7 +35,11 @@ func New(collector *collector.Collector, dataDir string, edgeMultiplier int, id 
 
 func (d *Destiny) processPulses() {
 	currentWeekID := int64(0)
-	for timestamp := range d.pulses {
+	for timestamp := range d.Pulses {
+		if timestamp == -1 {
+			d.PulsarReply <- timestamp
+			return
+		}
 		// if Change week, load new edges.
 		weekID := funcs.WeekID(timestamp)
 		if currentWeekID != weekID {
@@ -44,9 +49,12 @@ func (d *Destiny) processPulses() {
 
 		//Grind into ProtoOrders to send to Trader.
 		for _, edge := range d.edges[funcs.TimestampID(timestamp)] {
-			// Stuff this edge somewhere?
+			// Grind into Order.  Send to Trader.
 			fmt.Println(edge)
 		}
+
+		// Done doing my thing.  Send
+		d.PulsarReply <- timestamp
 	}
 }
 
@@ -87,9 +95,8 @@ func (d *Destiny) populateEdges(timestamp int64) {
 		}
 	}
 
-	// Do filtering here.
+	// Filter out unwanted symbols.
 	edges = filterEdgesByUnderlying(edges, d.underlying)
-	edges = filterEdgesByMultiplier(edges, d.edgeMultiplier)
 
 	// Choose 30 Edges.
 	bag := funcs.ChooseMFromN(30, len(edges))
@@ -98,6 +105,10 @@ func (d *Destiny) populateEdges(timestamp int64) {
 		edge := edges[index]
 		timestampID := funcs.TimestampID(edge.Timestamp)
 		d.edges[timestampID] = append(d.edges[timestampID], edge)
+	}
+	// Limit to multipliers of interest. Also, has effect of removing gaps.
+	for timestampID, _ := range d.edges {
+		d.edges[timestampID] = filterEdgesByMultiplier(d.edges[timestampID], d.edgeMultiplier)
 	}
 }
 
