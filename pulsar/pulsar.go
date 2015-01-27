@@ -1,23 +1,21 @@
 package pulsar
 
 import (
-	"github.com/eliwjones/thebox/dispatcher"
-
 	"os"
 	"sort"
 	"strconv"
 )
 
 type Pulsar struct {
-	dispatcher *dispatcher.Dispatcher // Where to send 'pulses'
-	pulses     []int64                // tape of pulses to send out.
-	replies    map[string]chan int64  // To synchronize, await replies.
+	pulses  []int64 // tape of pulses to send out.
+	pulsees map[string]chan int64
+	replies map[string]chan int64 // To synchronize, await replies.
 }
 
 func New(datadir string, start string, stop string) *Pulsar {
 	p := &Pulsar{}
-	p.dispatcher = dispatcher.New(10)
 	p.pulses = loadPulses(datadir, start, stop)
+	p.pulsees = map[string]chan int64{}
 	p.replies = map[string]chan int64{}
 
 	return p
@@ -25,7 +23,9 @@ func New(datadir string, start string, stop string) *Pulsar {
 
 func (p *Pulsar) Start() {
 	for _, pulse := range p.pulses {
-		p.dispatcher.Send(pulse, "pulser")
+		for _, pulsee := range p.pulsees {
+			pulsee <- pulse
+		}
 		// Feels wrong, but don't feel like rolling await-reply functionality into Dispatcher.
 		for _, reply := range p.replies {
 			<-reply
@@ -33,14 +33,16 @@ func (p *Pulsar) Start() {
 
 	}
 	// Send -1 as shutdown signal.
-	p.dispatcher.Send(int64(-1), "pulser")
+	for _, pulsee := range p.pulsees {
+		pulsee <- int64(-1)
+	}
 	for _, reply := range p.replies {
 		<-reply
 	}
 }
 
-func (p *Pulsar) Subscribe(whoami string, subscriber chan interface{}, reply chan int64) {
-	p.dispatcher.Subscribe("pulser", whoami, subscriber, true)
+func (p *Pulsar) Subscribe(whoami string, subscriber chan int64, reply chan int64) {
+	p.pulsees[whoami] = subscriber
 	p.replies[whoami] = reply
 }
 
