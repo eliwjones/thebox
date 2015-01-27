@@ -734,6 +734,21 @@ func (c *Collector) SaveToLog(message interface{}) (string, string) {
 	return filename, line
 }
 
+func (c *Collector) SerializeMaximums(maximums []structs.Maximum) (string, error) {
+	var err error
+	encodedMaximums := ""
+	for _, maximum := range maximums {
+		m, e := funcs.Encode(&maximum, funcs.MaximumEncodingOrder)
+		if e != nil {
+			fmt.Println("[SerializeMaximums] Err encoding maximum: %s", err)
+			err = e
+			continue
+		}
+		encodedMaximums += m + "\n"
+	}
+	return encodedMaximums, err
+}
+
 func (c *Collector) updateMaximum(o structs.Option, timestamp int64) {
 	// Don't do anything if nothing has been promoted for this expiration.
 	// All initialization happens inside addMaximum()
