@@ -17,7 +17,7 @@ func dummyEdges() []structs.Maximum {
 }
 
 func Test_Destiny_filterEdgesByMultiplier(t *testing.T) {
-	multiplier := 2
+	multiplier := float64(2)
 	edges := filterEdgesByMultiplier(dummyEdges(), multiplier)
 
 	if len(edges) == len(dummyEdges()) {
@@ -25,8 +25,9 @@ func Test_Destiny_filterEdgesByMultiplier(t *testing.T) {
 	}
 
 	for _, edge := range edges {
-		if edge.MaximumBid/edge.OptionAsk < multiplier {
-			t.Errorf("Expecting MaximumBid/OptionAsk < %d, Got: %d", multiplier, edge.MaximumBid/edge.OptionAsk)
+		em := float64(edge.MaximumBid) / float64(edge.OptionAsk)
+		if em < multiplier {
+			t.Errorf("Expecting MaximumBid/OptionAsk < %.4f, Got: %.4f", multiplier, em)
 		}
 	}
 }
