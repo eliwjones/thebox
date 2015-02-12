@@ -13,18 +13,6 @@ type AllotmentMessage struct {
 	Reply     chan interface{}
 }
 
-type Delta struct {
-	Amount  int
-	Percent float32
-	Path    Path
-}
-
-type Destination struct {
-	Underlying string            // "GOOG",  "SPX",  // Underlying?
-	Symbol     string            // function of Underlying? f(d.Underlying, 1, d.Type)
-	Type       util.ContractType // util.OPTION, util.STOCK
-}
-
 type Maximum struct {
 	// Fields used for Key-ing mapmapmap (or writing to file).
 	Expiration   string
@@ -70,13 +58,6 @@ type Order struct {
 	ProtoOrder ProtoOrder        // Needed for ultimate Delta calculation? (Maybe just loosely associate by id)
 }
 
-type Path struct {
-	Destination Destination
-	LimitOpen   int // populated by function of current (Bid, Ask)?  Too specific??
-	LimitClose  int // populated by function of LimitOpen?
-	Timestamp   int64
-}
-
 type Position struct {
 	Id        string // Some sort of id provided by api adapter?  (Thus can submit stop limit order for buytoclose).
 	Order     Order  // Order that position originated from.
@@ -84,8 +65,11 @@ type Position struct {
 }
 
 type ProtoOrder struct {
-	Allotment Allotment // Money alloted for order.
-	Path      Path      // How it wishes to "go out" and "return".
+	Symbol     string            // "GOOG", "GOOG_030615C620"
+	Type       util.ContractType // util.OPTION, util.STOCK
+	LimitOpen  int               // Set by Destiny from chosen edge.
+	LimitClose int               // Set by Destiny from chosen edge.
+	Timestamp  int64             // Suppose they may could expire..?
 }
 
 type ProtoOrderMessage struct {

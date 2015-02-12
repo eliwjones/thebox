@@ -11,6 +11,8 @@ import (
 )
 
 type Trader struct {
+	allotments []int // Placeholder .. not sure how will handle allotments.
+
 	positions  map[string]structs.Position            // Current outstanding positions.
 	orders     map[string]structs.Order               // Open (Closed?) orders.
 	pomIn      chan structs.ProtoOrderMessage         // Generally, ProtoOrders coming in.
@@ -24,6 +26,8 @@ type Trader struct {
 
 func New(adapter interfaces.Adapter) *Trader {
 	t := &Trader{}
+
+	t.allotments = []int{300000}
 
 	t.adapter = adapter
 	t.adptrAct = make(chan bool, 1000)
@@ -44,7 +48,7 @@ func New(adapter interfaces.Adapter) *Trader {
 	go func() {
 		for pom := range t.pomIn {
 			// Combine allotment with Path and send to Trader as ProtoOrder.
-			o, err := t.constructOrder(pom.ProtoOrder)
+			o, err := t.constructOrder(pom.ProtoOrder, t.allotments[0])
 			if err != nil {
 				if pom.Reply != nil {
 					pom.Reply <- pom.ProtoOrder
@@ -85,13 +89,13 @@ func New(adapter interfaces.Adapter) *Trader {
 	return t
 }
 
-func (t *Trader) constructOrder(po structs.ProtoOrder) (structs.Order, error) {
-	o := structs.Order{Symbol: po.Path.Destination.Symbol, Type: po.Path.Destination.Type}
-	o.Volume = (po.Allotment.Amount - t.commission[o.Type]["base"]) / (po.Path.LimitOpen * t.multiplier[o.Type])
-	o.Limitprice = po.Path.LimitOpen
+func (t *Trader) constructOrder(po structs.ProtoOrder, allotment int) (structs.Order, error) {
+	o := structs.Order{Symbol: po.Symbol, Type: po.Type}
+	o.Volume = (allotment - t.commission[o.Type]["base"]) / (po.LimitOpen * t.multiplier[o.Type])
+	o.Limitprice = po.LimitOpen
 	o.Maxcost = (o.Volume * o.Limitprice * t.multiplier[o.Type]) + (o.Volume * t.commission[o.Type]["unit"])
 	// Lazy search for acceptable volume.
-	for o.Maxcost > (po.Allotment.Amount - t.commission[o.Type]["base"]) {
+	for o.Maxcost > (allotment - t.commission[o.Type]["base"]) {
 		o.Volume--
 		o.Maxcost = (o.Volume * o.Limitprice * t.multiplier[o.Type]) + (o.Volume * t.commission[o.Type]["unit"])
 	}
