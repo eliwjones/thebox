@@ -150,6 +150,21 @@ func Test_LastSunday(t *testing.T) {
 	}
 }
 
+func Test_Multiplier(t *testing.T) {
+	// Mostly just a smoke test.
+	// Not sure how convoluted Multiplier() calculation will want to become.
+
+	m := Multiplier(100, 10, 0.0)
+	if m != 10.0 {
+		t.Errorf("Expected 10x! Got: %0.4f", m)
+	}
+
+	m = Multiplier(100, 9, 1.0)
+	if m != 10.0 {
+		t.Errorf("Expected 10x! Got: %0.4f", m)
+	}
+}
+
 func Test_NextFriday(t *testing.T) {
 	t1, _ := time.Parse("20060102", "20150107")
 	t2 := NextFriday(t1)

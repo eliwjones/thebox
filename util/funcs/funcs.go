@@ -165,6 +165,10 @@ func LazyWriteFile(folderName string, fileName string, data []byte) error {
 	return err
 }
 
+func Multiplier(bid int, ask int, commission float64) float64 {
+	return float64(bid) / (float64(ask) + commission)
+}
+
 func NextFriday(t time.Time) time.Time {
 	distance := int(time.Friday) - int(t.Weekday())
 	if distance < 0 {
