@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var MaximumEncodingOrder = []string{"Timestamp", "OptionType", "Underlying", "OptionSymbol", "UnderlyingBid", "OptionAsk", "MaximumBid", "MaxTimestamp"}
+var MaximumEncodingOrder = []string{"Timestamp", "OptionType", "Strike", "Underlying", "OptionSymbol", "UnderlyingBid", "OptionAsk", "MaximumBid", "MaxTimestamp"}
 var OptionEncodingOrder = []string{"Underlying", "Symbol", "Expiration", "Time", "Strike", "Bid", "Ask", "Last", "Volume", "OpenInterest", "IV", "Type"}
 var StockEncodingOrder = []string{"Symbol", "Time", "Bid", "Ask", "Last", "High", "Low", "Volume"}
 
@@ -186,5 +186,5 @@ func UpdateConfig(path string, lines []string) error {
 
 func WeekID(timestamp int64) int64 {
 	sunday := LastSunday(time.Unix(timestamp, 0).UTC())
-	return sunday.Truncate(24*time.Hour).Unix()
+	return sunday.Truncate(24 * time.Hour).Unix()
 }
