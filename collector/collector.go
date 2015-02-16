@@ -568,9 +568,9 @@ func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
 					edges[key] = max
 					continue
 				}
-				// Original OptionAsk indicates what option could have been purchased for.
-				// MaximumBid indicates what option could have been sold for.
-				if (float64(max.MaximumBid) / float64(max.OptionAsk)) > (float64(edges[key].MaximumBid) / float64(edges[key].OptionAsk)) {
+				// Not ultimately sure how to handle pre-computing edges when accounting for commission.
+				// This will vary from broker to broker.. so would become fairly complicated if totally generalized.
+				if funcs.Multiplier(max.MaximumBid, max.OptionAsk, 2.2) > funcs.Multiplier(edges[key].MaximumBid, edges[key].OptionAsk, 2.2) {
 					edges[key] = max
 				}
 			}
