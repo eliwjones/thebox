@@ -40,6 +40,11 @@ func ChooseMFromN(m int, n int) []int {
 	return chosen
 }
 
+func ClockTimeInSeconds(hhmmss string) int64 {
+	t, _ := time.Parse("150405", hhmmss)
+	return t.Unix() - t.Truncate(24*time.Hour).Unix()
+}
+
 func Decode(eo string, c interface{}, encodingOrder []string) error {
 	r := reflect.ValueOf(c).Elem()
 
@@ -158,11 +163,6 @@ func LazyWriteFile(folderName string, fileName string, data []byte) error {
 		fmt.Printf("[LazyWriteFile] Could not WriteFile: %s\nErr: %s\n", folderName+"/"+fileName, err)
 	}
 	return err
-}
-
-func ClockTimeInSeconds(hhmmss string) int64 {
-	t, _ := time.Parse("150405", hhmmss)
-	return t.Unix() - t.Truncate(24*time.Hour).Unix()
 }
 
 func NextFriday(t time.Time) time.Time {
