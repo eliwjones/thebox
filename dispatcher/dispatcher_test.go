@@ -39,13 +39,13 @@ func Test_Dispatcher_Send(t *testing.T) {
 	d := New(1024)
 
 	// Subscribe to 'delta' channel.
-	dc := make(chan interface{}, 10)
-	d.Subscribe("delta", "tester", dc, true)
+	ac := make(chan interface{}, 10)
+	d.Subscribe("allotment", "tester", ac, true)
 
-	delta := structs.Delta{}
-	d.Send(delta, "delta")
-	ddelta := <-dc
-	if ddelta != delta {
-		t.Errorf("Expected delta: %+v, Got: %+v", delta, ddelta)
+	allotment := structs.Allotment{Amount: 1000}
+	d.Send(allotment, "allotment")
+	dallotment := <-ac
+	if dallotment != allotment {
+		t.Errorf("Expected delta: %+v, Got: %+v", allotment, dallotment)
 	}
 }
