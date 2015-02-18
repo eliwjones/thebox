@@ -406,12 +406,8 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 			continue
 		}
 		// Have edges.. look for appropriate one.
-		for _, edge := range bytes.Split(edgeData, []byte("\n")) {
-			e := structs.Maximum{}
-			err := funcs.Decode(string(edge), &e, funcs.MaximumEncodingOrder)
-			if err != nil {
-				continue
-			}
+		edges, _ := c.DeserializeMaximums(string(edgeData))
+		for _, e := range edges {
 			// Underlying_type_TimestampID
 			edgeKey := getEdgeKey(e)
 			e.Expiration = expiration
@@ -592,15 +588,11 @@ func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
 		}
 
 		// Encode.
-		encodedEdges := ""
-		for _, edge := range edges {
-			e, err := funcs.Encode(&edge, funcs.MaximumEncodingOrder)
-			if err != nil {
-				c.logError("maybeCycleMaximums", err)
-				continue
-			}
-			encodedEdges += e + "\n"
+		es := []structs.Maximum{}
+		for _, e := range edges {
+			es = append(es, e)
 		}
+		encodedEdges, _ := c.SerializeMaximums(es)
 
 		// Save to c.livedir + "/edges/" + timestamp
 		path := c.livedir + "/edges"
