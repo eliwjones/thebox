@@ -266,6 +266,26 @@ func Test_Collector_promoteTarget(tst *testing.T) {
 	}
 }
 
+func Test_Collector_SerializeMaximums_DeserializeMaximums(t *testing.T) {
+	c := New("test", "./testdir", int64(60))
+	maximums := []structs.Maximum{
+		structs.Maximum{Underlying: "GOOG", OptionSymbol: "GOOG_013015C600"},
+		structs.Maximum{Underlying: "AAPL", OptionSymbol: "AAPL_013015P100"}}
+
+	sm, err := c.SerializeMaximums(maximums)
+	if err != nil {
+		t.Errorf("Got err: %s", err)
+	}
+	dms, err := c.DeserializeMaximums(sm)
+	if err != nil {
+		t.Errorf("Got err: %s", err)
+	}
+	if !reflect.DeepEqual(maximums, dms) {
+		t.Errorf("Expected:\n%v\nGot:\n%v", maximums, dms)
+	}
+
+}
+
 func Test_Collector_updateTarget(t *testing.T) {
 	c := New("test", "./testdir", int64(60))
 

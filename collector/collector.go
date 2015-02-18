@@ -327,6 +327,21 @@ func (c *Collector) Collect(symbol string) error {
 	return nil
 }
 
+func (c *Collector) DeserializeMaximums(maximums string) ([]structs.Maximum, error) {
+	var e error
+	Maximums := []structs.Maximum{}
+	for _, maximum := range strings.Split(maximums, "\n") {
+		m := structs.Maximum{}
+		err := funcs.Decode(maximum, &m, funcs.MaximumEncodingOrder)
+		if err != nil {
+			fmt.Printf("Maximum: %s, Err: %s\n", maximum, err)
+			e = err
+		}
+		Maximums = append(Maximums, m)
+	}
+	return Maximums, e
+}
+
 func (c *Collector) dumpMaximums() {
 	// Not sure of least dumb way to structure data for Marshal, Unmarshal..
 	// Expirementing with marshing all directly to current sub-dir with collector.id as filename.
@@ -746,7 +761,7 @@ func (c *Collector) SerializeMaximums(maximums []structs.Maximum) (string, error
 		}
 		encodedMaximums += m + "\n"
 	}
-	return encodedMaximums, err
+	return encodedMaximums[:len(encodedMaximums)-len("\n")], err
 }
 
 func (c *Collector) updateMaximum(o structs.Option, timestamp int64) {
