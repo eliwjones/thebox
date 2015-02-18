@@ -22,6 +22,8 @@ var MS = func(time time.Time) int64 {
 var Now = func() time.Time { return time.Now() }
 
 func ChooseMFromN(m int, n int) []int {
+	rand.Seed(time.Now().UnixNano())
+
 	bag := []int{}
 	chosen := []int{}
 	for i := 0; i < n; i++ {
