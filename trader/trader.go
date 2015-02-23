@@ -15,7 +15,7 @@ type Trader struct {
 
 	positions  map[string]structs.Position            // Current outstanding positions.
 	orders     map[string]structs.Order               // Open (Closed?) orders.
-	pomIn      chan structs.ProtoOrderMessage         // Generally, ProtoOrders coming in.
+	PoIn       chan structs.ProtoOrder                // Generally, ProtoOrders coming in.
 	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
 	multiplier map[util.ContractType]int              // Stocks trade in units of 1, Options in units of 100.
 	commission map[util.ContractType]map[string]int   // commission fees per type for base, unit.
@@ -34,7 +34,7 @@ func New(adapter interfaces.Adapter) *Trader {
 	t.positions, _ = t.adapter.GetPositions()
 	t.orders, _ = t.adapter.GetOrders("")
 
-	t.pomIn = make(chan structs.ProtoOrderMessage, 1000)
+	t.PoIn = make(chan structs.ProtoOrder, 1000)
 	t.out = make(map[string]map[string]chan interface{})
 
 	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
@@ -46,23 +46,23 @@ func New(adapter interfaces.Adapter) *Trader {
 
 	// Grind ProtoOrders into Orders.
 	go func() {
-		for pom := range t.pomIn {
+		for po := range t.PoIn {
 			// Combine allotment with Path and send to Trader as ProtoOrder.
-			o, err := t.constructOrder(pom.ProtoOrder, t.allotments[0])
+			o, err := t.constructOrder(po, t.allotments[0])
 			if err != nil {
-				if pom.Reply != nil {
-					pom.Reply <- pom.ProtoOrder
+				if po.Reply != nil {
+					po.Reply <- po
 				}
 				continue
 			}
 
 			// Submit order for execution.
 			oid, err := t.submitOrder(o)
-			if pom.Reply != nil {
+			if po.Reply != nil {
 				if err != nil {
-					pom.Reply <- false
+					po.Reply <- false
 				} else {
-					pom.Reply <- oid
+					po.Reply <- oid
 				}
 			}
 		}

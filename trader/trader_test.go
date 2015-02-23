@@ -82,7 +82,8 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 
 	reply := make(chan interface{})
 
-	td.pomIn <- structs.ProtoOrderMessage{ProtoOrder: po, Reply: reply}
+	po.Reply = reply
+	td.PoIn <- po
 	response := <-reply
 	if !strings.HasPrefix(response.(string), "order-") {
 		t.Errorf("Expected: order-*, Got: %s!", response.(string))
@@ -90,7 +91,7 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 
 	// Invalid ProtoOrder should be sent back.
 	po.LimitOpen++
-	td.pomIn <- structs.ProtoOrderMessage{ProtoOrder: po, Reply: reply}
+	td.PoIn <- po
 	response = <-reply
 	if response != po {
 		t.Errorf("Expected: %+v, Got: %+v!", po, response)

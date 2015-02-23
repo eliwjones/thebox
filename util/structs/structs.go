@@ -65,15 +65,11 @@ type Position struct {
 }
 
 type ProtoOrder struct {
-	Symbol     string            // "GOOG", "GOOG_030615C620"
-	Type       util.ContractType // util.OPTION, util.STOCK
-	LimitOpen  int               // Set by Destiny from chosen edge.
-	LimitClose int               // Set by Destiny from chosen edge.
-	Timestamp  int64             // Suppose they may could expire..?
-}
-
-type ProtoOrderMessage struct {
-	ProtoOrder ProtoOrder
+	Symbol    string            // "GOOG", "GOOG_030615C620"
+	Type      util.ContractType // util.OPTION, util.STOCK
+	LimitOpen int               // Set by Destiny from chosen edge.
+	Timestamp int64             // Suppose they may could expire..?
+	
 	Reply      chan interface{}
 }
 
