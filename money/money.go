@@ -9,15 +9,15 @@ import (
 )
 
 type Money struct {
-	Total      int                         // Total money in cents.
-	Available  int                         // Available money in cents.
-	Allotments []structs.Allotment         // Currently available Allotments.
-	deltaSum   int                         // Sum of Delta amounts.
-	deltaIn    chan structs.Delta          // Deltas rolling in.
-	get        chan chan structs.Allotment // Request allotment.
-	put        chan structs.Signal         // Put allotment.
-	reallot    chan chan bool              // Re-balance Allotments.
-	dispatcher *dispatcher.Dispatcher      // My megaphone.
+	Total       int                         // Total money in cents.
+	Available   int                         // Available money in cents.
+	Allotments  []structs.Allotment         // Currently available Allotments.
+	deltaSum    int                         // Sum of Delta amounts.
+	allotmentIn chan structs.Allotment      // Deltas rolling in.
+	get         chan chan structs.Allotment // Request allotment.
+	put         chan structs.Signal         // Put allotment.
+	reallot     chan chan bool              // Re-balance Allotments.
+	dispatcher  *dispatcher.Dispatcher      // My megaphone.
 }
 
 func (m *Money) Get() (structs.Allotment, error) {
@@ -73,7 +73,7 @@ func New(cash int) *Money {
 
 	m.Allotments = []structs.Allotment{}
 	m.deltaSum = 0
-	m.deltaIn = make(chan structs.Delta, 100)
+	m.allotmentIn = make(chan structs.Allotment, 100)
 	m.get = make(chan chan structs.Allotment, 100)
 	m.put = make(chan structs.Signal, 100)
 	m.reallot = make(chan chan bool, 10)
@@ -119,8 +119,8 @@ func New(cash int) *Money {
 
 	// Process incoming Deltas
 	go func() {
-		for delta := range m.deltaIn {
-			m.deltaSum += delta.Amount
+		for allotment := range m.allotmentIn {
+			m.deltaSum += allotment.Amount
 
 			// Determine if can construct Allotment and send on.
 			a, err := m.getRandomAllotment()

@@ -110,23 +110,23 @@ func Test_Money_getRandomAllotment(t *testing.T) {
 func Test_Money_Processor_Delta(t *testing.T) {
 	m := New(1000000 * 100)
 	oldTotal := m.Total
-	// Send deltas to deltaIn
-	d := structs.Delta{Amount: m.Total / 1000}
+	// Send allotments to allotmentIn
+	allotment := structs.Allotment{Amount: m.Total / 1000}
 	for i := 0; i < 10; i++ {
-		m.deltaIn <- d
+		m.allotmentIn <- allotment
 	}
-	for len(m.deltaIn) > 0 {
+	for len(m.allotmentIn) > 0 {
 		time.Sleep(1 * time.Millisecond)
 	}
-	if m.Total != oldTotal+d.Amount*10 {
-		t.Errorf("Expected: %d, Got: %d!", oldTotal+d.Amount*10, m.Total)
+	if m.Total != oldTotal+allotment.Amount*10 {
+		t.Errorf("Expected: %d, Got: %d!", oldTotal+allotment.Amount*10, m.Total)
 	}
 
-	// Test for remainder delta.
+	// Test for remainder allotment.
 	oldTotal = m.Total
 	a, _ := m.getRandomAllotment()
-	d = structs.Delta{Amount: a.Amount + 200}
-	m.deltaIn <- d
+	allotment = structs.Allotment{Amount: a.Amount + 200}
+	m.allotmentIn <- allotment
 	for m.Total == oldTotal {
 		time.Sleep(1 * time.Millisecond)
 	}
