@@ -11,17 +11,16 @@ import (
 )
 
 type Trader struct {
-	allotments []int // Placeholder .. not sure how will handle allotments.
-
-	positions  map[string]structs.Position            // Current outstanding positions.
-	orders     map[string]structs.Order               // Open (Closed?) orders.
-	PoIn       chan structs.ProtoOrder                // Generally, ProtoOrders coming in.
-	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
-	multiplier map[util.ContractType]int              // Stocks trade in units of 1, Options in units of 100.
-	commission map[util.ContractType]map[string]int   // commission fees per type for base, unit.
-	dispatcher *dispatcher.Dispatcher                 // My megaphone.
 	adapter    interfaces.Adapter                     // Adapter already connected to "Broker".
 	adptrAct   chan bool                              // Used to signal activity between Trader/Adapter.
+	allotments []int                                  // Placeholder .. not sure how will handle allotments.
+	commission map[util.ContractType]map[string]int   // commission fees per type for base, unit.
+	dispatcher *dispatcher.Dispatcher                 // My megaphone.
+	multiplier map[util.ContractType]int              // Stocks trade in units of 1, Options in units of 100.
+	orders     map[string]structs.Order               // Open (Closed?) orders.
+	out        map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
+	PoIn       chan structs.ProtoOrder                // Generally, ProtoOrders coming in.
+	positions  map[string]structs.Position            // Current outstanding positions.
 }
 
 func New(adapter interfaces.Adapter) *Trader {
