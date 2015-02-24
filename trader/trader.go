@@ -1,8 +1,8 @@
 package trader
 
 import (
-	"github.com/eliwjones/thebox/dispatcher"
 	"github.com/eliwjones/thebox/util"
+	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/interfaces"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -10,41 +10,33 @@ import (
 )
 
 type Trader struct {
-	adapter     interfaces.Adapter                     // Adapter already connected to "Broker".
-	adptrAct    chan bool                              // Used to signal activity between Trader/Adapter.
-	allotments  []int                                  // Placeholder .. not sure how will handle allotments.
-	commission  map[util.ContractType]map[string]int   // commission fees per type for base, unit.
-	dispatcher  *dispatcher.Dispatcher                 // My megaphone.
-	multiplier  map[util.ContractType]int              // Stocks trade in units of 1, Options in units of 100.
-	orders      map[string]structs.Order               // Open (Closed?) orders.
-	out         map[string]map[string]chan interface{} // Generally, Delta's heading out to dispatcher.
-	PoIn        chan structs.ProtoOrder                // Generally, ProtoOrders coming in.
-	positions   map[string]structs.Position            // Current outstanding positions.
-	Pulses      chan int64                             // timestamps from pulsar come here.
-	PulsarReply chan int64                             // Reply back to Pulsar when done doing work.
+	adapter       interfaces.Adapter                   // Adapter already connected to "Broker".
+	allotments    []int                                // Placeholder .. not sure how will handle allotments.
+	commission    map[util.ContractType]map[string]int // commission fees per type for base, unit.
+	currentWeekId int64
+	multiplier    map[util.ContractType]int   // Stocks trade in units of 1, Options in units of 100.
+	orders        map[string]structs.Order    // Open (Closed?) orders.
+	PoIn          chan structs.ProtoOrder     // Generally, ProtoOrders coming in.
+	positions     map[string]structs.Position // Current outstanding positions.
+	Pulses        chan int64                  // timestamps from pulsar come here.
+	PulsarReply   chan int64                  // Reply back to Pulsar when done doing work.
 }
 
 func New(adapter interfaces.Adapter) *Trader {
 	t := &Trader{}
 
-	t.allotments = []int{300000}
-
 	t.adapter = adapter
-	t.adptrAct = make(chan bool, 1000)
 	t.positions, _ = t.adapter.GetPositions()
 	t.orders, _ = t.adapter.GetOrders("")
 
 	t.PoIn = make(chan structs.ProtoOrder, 1000)
 	t.Pulses = make(chan int64, 1000)
 	t.PulsarReply = make(chan int64, 1000)
-	t.out = make(map[string]map[string]chan interface{})
 
 	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
 	t.commission = map[util.ContractType]map[string]int{}
 	t.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
 	t.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
-
-	t.dispatcher = dispatcher.New(1000)
 
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
@@ -52,12 +44,18 @@ func New(adapter interfaces.Adapter) *Trader {
 			t.consumePoIn(timestamp)
 
 			if timestamp == -1 {
-				// Must figure out if all t.PoIn messages have been consumed before shutting down.
 				// Serialize state.
+
 				t.PulsarReply <- timestamp
 				return
 			}
-			// weekID := funcs.WeekID(timestamp)
+			weekID := funcs.WeekID(timestamp)
+			if t.currentWeekId != weekID {
+				// init or get allotments.
+				t.allotments = allotments()
+
+				t.currentWeekId = weekID
+			}
 
 			t.sync()
 
@@ -94,13 +92,9 @@ func (t *Trader) consumePoIn(timestamp int64) {
 			}
 			continue
 		}
-		var oid string
-		if timestamp > po.Timestamp {
-			// Submit order for execution.
-			oid, err = t.adapter.SubmitOrder(o)
-		} else {
-			// Save order to Order collection? (since orders can have future date?)
-		}
+
+		// Submit order for execution.
+		oid, err := t.adapter.SubmitOrder(o)
 
 		if po.Reply != nil {
 			if err != nil {
@@ -110,6 +104,17 @@ func (t *Trader) consumePoIn(timestamp int64) {
 			}
 		}
 	}
+}
+
+func (t *Trader) deserializeState() {
+	// Load allotments, currentWeekId, positions
+}
+
+func (t *Trader) serializeState() {
+	// What gets saved here?
+	// For cron-ed, single timestamp behaviour, presumably need current:
+	//     allotments, currentWeekId, positions
+	//  Positions need be serialized so can have associated 'order-id' and sampled bids and corresponding sample periods.
 }
 
 func (t *Trader) sync() {
@@ -130,4 +135,13 @@ func (t *Trader) sync() {
 
 		t.positions = currentpositions
 	}
+}
+
+func allotments() []int {
+	// 15 $3,000 allotments
+	allotments := []int{}
+	for i := 0; i < 15; i++ {
+		allotments = append(allotments, 3000*100)
+	}
+	return allotments
 }

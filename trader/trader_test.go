@@ -78,7 +78,7 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 
 	po := constructValidStockProtoOrder(td)
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
-	td.allotments[0] = po.LimitOpen*td.multiplier[util.STOCK] + minCommission
+	td.allotments = []int{po.LimitOpen*td.multiplier[util.STOCK] + minCommission}
 
 	reply := make(chan interface{})
 
@@ -94,6 +94,7 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 	}
 
 	// Invalid ProtoOrder should be sent back.
+	td.allotments = []int{po.LimitOpen*td.multiplier[util.STOCK] + minCommission}
 	po.LimitOpen++
 	td.PoIn <- po
 	td.Pulses <- int64(1)
