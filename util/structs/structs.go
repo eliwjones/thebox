@@ -69,8 +69,8 @@ type ProtoOrder struct {
 	Type      util.ContractType // util.OPTION, util.STOCK
 	LimitOpen int               // Set by Destiny from chosen edge.
 	Timestamp int64             // Suppose they may could expire..?
-	
-	Reply      chan interface{}
+
+	Reply chan interface{} `json:"-"`
 }
 
 type Subscription struct {
