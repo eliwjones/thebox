@@ -138,6 +138,23 @@ func Test_getConfig(t *testing.T) {
 	}
 }
 
+func Test_ID(t *testing.T) {
+	id1 := ID("GOOG", 8, 1.5, false)
+	id2 := ID("GOOG", 8, 1.5, false)
+
+	if id1 == id2 {
+		t.Errorf("IDs should not be equal!\n%s\n%s", id1, id2)
+	}
+
+	id1 = ID("GOOG", 8, 1.5, true)
+	id2 = ID("GOOG", 8, 1.5, true)
+
+	if id1 == id2 {
+		t.Errorf("IDs should not be equal!\n%s\n%s", id1, id2)
+	}
+	t.Errorf("\n%s\n%s\n", id1, id2)
+}
+
 func Test_LastSunday(t *testing.T) {
 	t1 := time.Now().UTC()
 

@@ -115,6 +115,19 @@ func GetConfig(path string) ([]string, error) {
 	return lines, nil
 }
 
+func ID(underlying string, weeksBack int, multiplier float64, realTime bool) string {
+	rand.Seed(time.Now().UnixNano())
+
+	id := fmt.Sprintf("%s_%02d_%.2f", underlying, weeksBack, multiplier)
+	randomN := rand.Intn(1000)
+	if realTime {
+		id += fmt.Sprintf("_realtime_%04d", randomN)
+	} else {
+		id += fmt.Sprintf("_%d_%04d", time.Now().Unix(), randomN)
+	}
+	return id
+}
+
 func LastSunday(t time.Time) time.Time {
 	distance := int(time.Sunday) - int(t.Weekday())
 
