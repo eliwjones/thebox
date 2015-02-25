@@ -2,10 +2,10 @@ package destiny
 
 import (
 	"github.com/eliwjones/thebox/collector"
+	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
 
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -17,18 +17,20 @@ type Destiny struct {
 	dataDir        string                      // top level dir for data.
 	edges          map[int64][]structs.Maximum // edges keyed by TimestampID().
 	edgeMultiplier float64
-	id             string     // allows for namespacing and multiple simulation runs.
+	id             string // allows for namespacing and multiple simulation runs.
+	PoC            chan structs.ProtoOrder
 	Pulses         chan int64 // timestamps from pulsar come here.
 	PulsarReply    chan int64 // Reply back to Pulsar when done doing work.
 	underlying     string
 	weeksBack      int
 }
 
-func New(c *collector.Collector, dataDir string, edgeMultiplier float64, id string, underlying string, weeksBack int) *Destiny {
+func New(id string, dataDir string, underlying string, weeksBack int, edgeMultiplier float64, c *collector.Collector, poc chan structs.ProtoOrder) *Destiny {
 	d := &Destiny{id: id, dataDir: dataDir, edgeMultiplier: edgeMultiplier,
 		underlying: underlying, weeksBack: weeksBack}
 	d.collector = c
 	d.edges = map[int64][]structs.Maximum{}
+	d.PoC = poc
 	d.Pulses = make(chan int64, 1000)
 	d.PulsarReply = make(chan int64, 1000)
 
@@ -41,6 +43,7 @@ func (d *Destiny) processPulses() {
 	currentWeekID := int64(0)
 	for timestamp := range d.Pulses {
 		if timestamp == -1 {
+			// Serialize state in preparation for shutdown.
 			d.PulsarReply <- timestamp
 			return
 		}
@@ -57,6 +60,7 @@ func (d *Destiny) processPulses() {
 		for _, edge := range d.edges[funcs.TimestampID(timestamp)] {
 			// Grind into Order.  Send to Trader.
 			// Find quote nearest to edge.
+
 			edgePremiumPct := (float64(edge.OptionAsk) + float64(2.2)) / float64(edge.Strike)
 			nearestPremiumPct := float64(1)
 			matchOption := structs.Option{}
@@ -68,8 +72,6 @@ func (d *Destiny) processPulses() {
 				if math.Abs(premiumPct-edgePremiumPct) < math.Abs(nearestPremiumPct-edgePremiumPct) {
 					matchOption = quote
 					nearestPremiumPct = premiumPct
-				} else {
-					fmt.Printf("%.4f > %.4f\n", premiumPct, edgePremiumPct)
 				}
 
 			}
@@ -82,30 +84,25 @@ func (d *Destiny) processPulses() {
 			// This is completely naive method.
 			// Could block if not close enough, OR could simply submit order with Min(edge.Ask, matchOption.Ask)
 
-			encodedTrade := fmt.Sprintf("%d,%s,%d,%d", timestamp, matchOption.Symbol, matchOption.Ask, edge.MaximumBid)
-
-			edgeMultiplier := float64(edge.MaximumBid) / (float64(edge.OptionAsk) + float64(2.2))
-			matchOptionMultiplier := float64(edge.MaximumBid) / (float64(matchOption.Ask) + float64(2.2))
+			edgeMultiplier := funcs.Multiplier(edge.MaximumBid, edge.OptionAsk, 2.2)
+			matchOptionMultiplier := funcs.Multiplier(edge.MaximumBid, matchOption.Ask, 2.2)
 			multiplierDiff := math.Abs(edgeMultiplier - matchOptionMultiplier)
 			// Want multiplier to be within 10% of edge Multiplier.
 			// If it is too far away, then I'm in uncharted territory that would require more thought.
 			if multiplierDiff/edgeMultiplier > float64(0.1) {
-				fmt.Printf("Multiplier Diff Too Big: %d\n", multiplierDiff)
-				fmt.Println(encodedTrade)
+				fmt.Printf("Multiplier Diff Too Big: %.4f\n", multiplierDiff)
 				continue
 			}
 
-			// Presumably, have "kosher" matchOption. Construct Open and Close Orders.
-			// "Easy" examination would be... save "order" for:
-			//     Timestamp, option.Symbol, LimitOpen == matchOption.Ask, LimitClose == edge.MaximumBid.
-			// Can then compare to Maximum for Timestamp, option.Symbol at end of week calculation.
-			filename := fmt.Sprintf("%d", weekID)
-			path := fmt.Sprintf("%s/%s/trades", d.dataDir, d.id)
+			// Construct PO.
+			po := structs.ProtoOrder{}
+			po.Timestamp = timestamp
+			po.Symbol = matchOption.Symbol
+			po.LimitOpen = matchOption.Ask
+			po.Type = util.OPTION
 
-			err := funcs.LazyAppendFile(path, filename, encodedTrade)
-			if err != nil {
-				fmt.Println(err)
-			}
+			// Send to ProtoOrder Channel.
+			d.PoC <- po
 		}
 
 		// Done doing my thing.  Send
@@ -117,7 +114,7 @@ func (d *Destiny) populateEdges(timestamp int64) {
 	edges := []structs.Maximum{}
 
 	filename := fmt.Sprintf("%d", funcs.WeekID(timestamp))
-	path := fmt.Sprintf("%s/edges/%d", d.dataDir, d.weeksBack)
+	path := fmt.Sprintf("%s/destiny/%02d_week_edges", d.dataDir, d.weeksBack)
 	edgeData, err := ioutil.ReadFile(path + "/" + filename)
 	if err != nil {
 		// Not found, load from collector and persist.
@@ -133,13 +130,9 @@ func (d *Destiny) populateEdges(timestamp int64) {
 		}
 	} else {
 		// Got edgeData, decode into []structs.Maximum
-		for _, edge := range bytes.Split(edgeData, []byte("\n")) {
-			e := structs.Maximum{}
-			err := funcs.Decode(string(edge), &e, funcs.MaximumEncodingOrder)
-			if err != nil {
-				panic("What to do?  Thought I had edges, but they buggy.  Just get from collector?")
-			}
-			edges = append(edges, e)
+		edges, err = d.collector.DeserializeMaximums(string(edgeData))
+		if err != nil {
+			panic("Someone broke something with DeserializeMaximums or SerializeMaximums.")
 		}
 	}
 
@@ -166,7 +159,7 @@ func (d *Destiny) populateEdges(timestamp int64) {
 	}
 	sort.Sort(collector.ByTimestampID(toBeSerialized))
 	encodedEdges, _ := d.collector.SerializeMaximums(toBeSerialized)
-	path = fmt.Sprintf("%s/%s/chosen_edges/%d", d.dataDir, d.id, d.weeksBack)
+	path = fmt.Sprintf("%s/%s/destiny/chosen_edges", d.dataDir, d.id)
 	funcs.LazyWriteFile(path, filename, []byte(encodedEdges))
 }
 
