@@ -13,6 +13,7 @@ import (
 
 var MaximumEncodingOrder = []string{"Timestamp", "OptionType", "Strike", "Underlying", "OptionSymbol", "UnderlyingBid", "OptionAsk", "MaximumBid", "MaxTimestamp"}
 var OptionEncodingOrder = []string{"Underlying", "Symbol", "Expiration", "Time", "Strike", "Bid", "Ask", "Last", "Volume", "OpenInterest", "IV", "Type"}
+var OrderEncodingOrder = []string{"Id", "Symbol", "Type", "Limitprice", "Volume"}
 var StockEncodingOrder = []string{"Symbol", "Time", "Bid", "Ask", "Last", "High", "Low", "Volume"}
 
 var MS = func(time time.Time) int64 {

@@ -8,6 +8,7 @@ import (
 
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 type Trader struct {
@@ -15,6 +16,8 @@ type Trader struct {
 	Allotments    []int                                `json:"allotments"`    // Placeholder .. not sure how will handle allotments.
 	commission    map[util.ContractType]map[string]int `json:"-"`             // commission fees per type for base, unit.
 	CurrentWeekId int64                                `json:"currentWeekId"` // When am I?
+	dataDir       string                               `json:"-"`             // Where am I?
+	id            string                               `json:"-"`             // Who am I?
 	multiplier    map[util.ContractType]int            `json:"-"`             // Stocks trade in units of 1, Options in units of 100.
 	orders        map[string]structs.Order             `json:"-"`             // Open (Closed?) orders.
 	PoIn          chan structs.ProtoOrder              `json:"-"`             // Generally, ProtoOrders coming in.
@@ -23,8 +26,8 @@ type Trader struct {
 	PulsarReply   chan int64                           `json:"-"`             // Reply back to Pulsar when done doing work.
 }
 
-func New(adapter interfaces.Adapter) *Trader {
-	t := &Trader{}
+func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
+	t := &Trader{id: id, dataDir: dataDir}
 
 	t.adapter = adapter
 	t.Positions, _ = t.adapter.GetPositions()
@@ -97,6 +100,16 @@ func (t *Trader) consumePoIn(timestamp int64) {
 
 		// Submit order for execution.
 		oid, err := t.adapter.SubmitOrder(o)
+		// Log order submission.
+		o.Id = oid
+		path := fmt.Sprintf("%s/%s/trader", t.dataDir, t.id)
+		encodedOrder, _ := funcs.Encode(&o, funcs.OrderEncodingOrder)
+		if err != nil {
+			encodedOrder = fmt.Sprintf("%d,error,%s,%s", timestamp, err, encodedOrder)
+		} else {
+			encodedOrder = fmt.Sprintf("%d,order,%s", timestamp, encodedOrder)
+		}
+		funcs.LazyAppendFile(path, "log", encodedOrder)
 
 		if po.Reply != nil {
 			if err != nil {
