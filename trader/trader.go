@@ -15,6 +15,7 @@ import (
 type Trader struct {
 	adapter       interfaces.Adapter                   `json:"-"`             // Adapter already connected to "Broker".
 	Allotments    []int                                `json:"allotments"`    // Placeholder .. not sure how will handle allotments.
+	Balances      map[string]int                       `json:"balances"`      // Not sure on wisdom of rolling Money into Trader, but we shall see.
 	commission    map[util.ContractType]map[string]int `json:"-"`             // commission fees per type for base, unit.
 	CurrentWeekId int64                                `json:"currentWeekId"` // When am I?
 	dataDir       string                               `json:"-"`             // Where am I?
@@ -48,6 +49,9 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 	// Ambivalent about need for big, official SerializeAndSaveState() functions..
 	serializedState, _ := ioutil.ReadFile(t.traderDir + "/state")
 	t.deserializeState(serializedState)
+
+	// Sync may overwrite saved state since adapter is source of truth.
+	t.sync()
 
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
@@ -138,6 +142,7 @@ func (t *Trader) deserializeState(state []byte) error {
 		return err
 	}
 	t.Allotments = dt.Allotments
+	t.Balances = dt.Balances
 	t.CurrentWeekId = dt.CurrentWeekId
 	t.Positions = dt.Positions
 
@@ -145,6 +150,11 @@ func (t *Trader) deserializeState(state []byte) error {
 }
 
 func (t *Trader) sync() {
+	b, err := t.adapter.GetBalances()
+	if err != nil {
+		t.Balances = b
+	}
+
 	// Reconcile Orders, Positions.
 	currentorders, err := t.adapter.GetOrders("")
 	if err != nil {
