@@ -69,7 +69,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 			weekID := funcs.WeekID(timestamp)
 			if t.CurrentWeekId != weekID {
 				// init or get allotments.
-				t.Allotments = allotments()
+				t.Allotments = allotments(t.Balances["cash"], t.Balances["value"])
 
 				t.CurrentWeekId = weekID
 			}
@@ -151,17 +151,17 @@ func (t *Trader) deserializeState(state []byte) error {
 
 func (t *Trader) sync() {
 	b, err := t.adapter.GetBalances()
-	if err != nil {
+	if err == nil {
 		t.Balances = b
 	}
 
 	// Reconcile Orders, Positions.
 	currentorders, err := t.adapter.GetOrders("")
-	if err != nil {
+	if err == nil {
 		t.orders = currentorders
 	}
 	currentpositions, err := t.adapter.GetPositions()
-	if err != nil {
+	if err == nil {
 		for id, _ := range t.Positions {
 			_, found := currentpositions[id]
 			if !found {
@@ -174,11 +174,12 @@ func (t *Trader) sync() {
 	}
 }
 
-func allotments() []int {
-	// 15 $3,000 allotments
+func allotments(cash int, value int) []int {
+	a := cash / 100
+	// 15 1% allotments
 	allotments := []int{}
 	for i := 0; i < 15; i++ {
-		allotments = append(allotments, 3000*100)
+		allotments = append(allotments, a)
 	}
 	return allotments
 }

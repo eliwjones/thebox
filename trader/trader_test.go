@@ -113,7 +113,7 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
 
 	td.CurrentWeekId = int64(9999)
-	td.Allotments = allotments()
+	td.Allotments = allotments(td.Balances["cash"], td.Balances["value"])
 
 	po := structs.ProtoOrder{Symbol: "GOOG_201501_p", Type: util.OPTION, LimitOpen: 100, Timestamp: int64(1)}
 	o, err := td.constructOrder(po, td.Allotments[0])
