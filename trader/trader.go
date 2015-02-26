@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 )
 
 type Trader struct {
@@ -24,6 +25,7 @@ type Trader struct {
 	Positions     map[string]structs.Position          `json:"positions"`     // Current outstanding positions.
 	Pulses        chan int64                           `json:"-"`             // timestamps from pulsar come here.
 	PulsarReply   chan int64                           `json:"-"`             // Reply back to Pulsar when done doing work.
+	traderDir     string                               `json:"-"`             // Where to save information pertaining to this instance of trader.
 }
 
 func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
@@ -36,11 +38,16 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 	t.PoIn = make(chan structs.ProtoOrder, 1000)
 	t.Pulses = make(chan int64, 1000)
 	t.PulsarReply = make(chan int64, 1000)
+	t.traderDir = fmt.Sprintf("%s/%s/trader", t.dataDir, t.id)
 
 	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
 	t.commission = map[util.ContractType]map[string]int{}
 	t.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
 	t.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
+
+	// Ambivalent about need for big, official SerializeAndSaveState() functions..
+	serializedState, _ := ioutil.ReadFile(t.traderDir + "/state")
+	t.deserializeState(serializedState)
 
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
@@ -48,8 +55,10 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 			t.consumePoIn(timestamp)
 
 			if timestamp == -1 {
-				// Serialize state.
-				t.serializeState()
+				// Save State.
+				serializedState, _ := json.Marshal(t)
+				funcs.LazyWriteFile(t.traderDir, "state", serializedState)
+
 				t.PulsarReply <- timestamp
 				return
 			}
@@ -102,14 +111,13 @@ func (t *Trader) consumePoIn(timestamp int64) {
 		oid, err := t.adapter.SubmitOrder(o)
 		// Log order submission.
 		o.Id = oid
-		path := fmt.Sprintf("%s/%s/trader", t.dataDir, t.id)
 		encodedOrder, _ := funcs.Encode(&o, funcs.OrderEncodingOrder)
 		if err != nil {
 			encodedOrder = fmt.Sprintf("%d,error,%s,%s", timestamp, err, encodedOrder)
 		} else {
 			encodedOrder = fmt.Sprintf("%d,order,%s", timestamp, encodedOrder)
 		}
-		funcs.LazyAppendFile(path, "log", encodedOrder)
+		funcs.LazyAppendFile(t.traderDir, "log", encodedOrder)
 
 		if po.Reply != nil {
 			if err != nil {
@@ -126,21 +134,14 @@ func (t *Trader) deserializeState(state []byte) error {
 	dt := &Trader{}
 	err := json.Unmarshal(state, &dt)
 
-	if err == nil {
-		t.Allotments = dt.Allotments
-		t.CurrentWeekId = dt.CurrentWeekId
-		t.Positions = dt.Positions
+	if err != nil {
+		return err
 	}
+	t.Allotments = dt.Allotments
+	t.CurrentWeekId = dt.CurrentWeekId
+	t.Positions = dt.Positions
 
-	return err
-}
-
-func (t *Trader) serializeState() ([]byte, error) {
-	// What gets saved here?
-	// For cron-ed, single timestamp behaviour, presumably need current:
-	//     allotments, currentWeekId, positions
-	//  Positions need be serialized so can have associated 'order-id' and sampled bids and corresponding sample periods.
-	return json.Marshal(t)
+	return nil
 }
 
 func (t *Trader) sync() {

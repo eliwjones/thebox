@@ -5,6 +5,8 @@ import (
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
+	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -29,14 +31,14 @@ func constructValidOptionProtoOrder(td *Trader) structs.ProtoOrder {
 }
 
 func Test_Trader_New(t *testing.T) {
-	td := New(simulate.New("simulate", "simulation"))
+	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
 	if td == nil {
 		t.Errorf("Trader New() call failed!")
 	}
 }
 
 func Test_Trader_constructOrder_Option(t *testing.T) {
-	td := New(simulate.New("simulate", "simulation"))
+	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
 
 	po := constructValidOptionProtoOrder(td)
 	minCommission := td.commission[util.OPTION]["base"] + td.commission[util.OPTION]["unit"]
@@ -55,7 +57,7 @@ func Test_Trader_constructOrder_Option(t *testing.T) {
 }
 
 func Test_Trader_constructOrder_Stock(t *testing.T) {
-	td := New(simulate.New("simulate", "simulation"))
+	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
 
 	po := constructValidStockProtoOrder(td)
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
@@ -75,7 +77,7 @@ func Test_Trader_constructOrder_Stock(t *testing.T) {
 }
 
 func Test_Trader_Processor_ProtoOrder(t *testing.T) {
-	td := New(simulate.New("simulate", "simulation"))
+	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
 
 	po := constructValidStockProtoOrder(td)
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
@@ -106,7 +108,9 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 }
 
 func Test_Trader_serializeState_deserializeState(t *testing.T) {
-	td := New(simulate.New("simulate", "simulation"))
+	os.RemoveAll("testDir")
+
+	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
 
 	td.CurrentWeekId = int64(9999)
 	td.Allotments = allotments()
@@ -119,25 +123,38 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	td.Positions = map[string]structs.Position{}
 	td.Positions["order-1"] = structs.Position{Id: "order-1", Fillprice: o.Limitprice, Order: o}
 
-	st, err := td.serializeState()
+	st, err := json.Marshal(td)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	newTrader := New(simulate.New("simulate", "simulation"))
+	td2 := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td2.deserializeState(st)
 
-	err = newTrader.deserializeState(st)
-	if err != nil {
-		t.Errorf("Err: %s, dt: %v", err, newTrader)
+	// Verify td2 received state.
+	if td2.CurrentWeekId != td.CurrentWeekId {
+		t.Errorf("Expected: %d, Got: %d", td.CurrentWeekId, td2.CurrentWeekId)
+	}
+	if !reflect.DeepEqual(td2.Allotments, td.Allotments) {
+		t.Errorf("Expected: %v, Got: %v", td.Allotments, td2.Allotments)
+	}
+	if !reflect.DeepEqual(td2.Positions, td.Positions) {
+		t.Errorf("\nExpected: %v\nGot: %v", td.Positions, td2.Positions)
 	}
 
-	// Verify newTrader received state.
-	if newTrader.CurrentWeekId != td.CurrentWeekId {
-		t.Errorf("Expected: %d, Got: %d", td.CurrentWeekId, newTrader.CurrentWeekId)
+	// Initiate built-in state saving.
+	td2.Pulses <- int64(-1)
+	// Await shutdown.
+	<-td2.PulsarReply
+
+	td3 := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	// Verify td3 received state.
+	if td3.CurrentWeekId != td.CurrentWeekId {
+		t.Errorf("Expected: %d, Got: %d", td.CurrentWeekId, td3.CurrentWeekId)
 	}
-	if !reflect.DeepEqual(newTrader.Allotments, td.Allotments) {
-		t.Errorf("Expected: %v, Got: %v", td.Allotments, newTrader.Allotments)
+	if !reflect.DeepEqual(td3.Allotments, td.Allotments) {
+		t.Errorf("Expected: %v, Got: %v", td.Allotments, td3.Allotments)
 	}
-	if !reflect.DeepEqual(newTrader.Positions, td.Positions) {
-		t.Errorf("\nExpected: %v\nGot: %v", td.Positions, newTrader.Positions)
+	if !reflect.DeepEqual(td3.Positions, td.Positions) {
+		t.Errorf("\nExpected: %v\nGot: %v", td.Positions, td3.Positions)
 	}
 }
