@@ -1,6 +1,7 @@
 package tdameritrade
 
 import (
+	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"bytes"
@@ -89,11 +90,19 @@ type TDAmeritrade struct {
 	Positions map[string]structs.Position // most likely just util.Positions.
 	Orders    map[string]structs.Order    // most likely just util.Orders.
 	Cash      int                         // cash available.
-	Value     int                         // total account value (cash + position value).
+	Value     int                         // total account value (cash + position value)
+
+	commission         map[util.ContractType]map[string]int // Commission information.
+	contractMultiplier map[util.ContractType]int            // How many contracts trade per unit of volume.  Generally 1 for stocks and 100 for options.
 }
 
 func New(id string, auth string, source string, jsessionid string) *TDAmeritrade {
 	s := &TDAmeritrade{Id: id, Auth: auth, Source: source}
+
+	s.contractMultiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
+	s.commission = map[util.ContractType]map[string]int{}
+	s.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
+	s.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
 
 	s.JsessionID, _ = s.Connect(s.Id, s.Auth, jsessionid)
 
@@ -106,6 +115,14 @@ func New(id string, auth string, source string, jsessionid string) *TDAmeritrade
 	s.Orders = map[string]structs.Order{}
 
 	return s
+}
+
+func (s *TDAmeritrade) Commission() map[util.ContractType]map[string]int {
+	return s.commission
+}
+
+func (s *TDAmeritrade) ContractMultiplier() map[util.ContractType]int {
+	return s.contractMultiplier
 }
 
 func (s *TDAmeritrade) Connect(id string, auth string, jsessionid string) (string, error) {

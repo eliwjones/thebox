@@ -33,6 +33,8 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 	t := &Trader{id: id, dataDir: dataDir}
 
 	t.adapter = adapter
+	t.commission = adapter.Commission()
+	t.multiplier = adapter.ContractMultiplier()
 	t.Positions, _ = t.adapter.GetPositions()
 	t.orders, _ = t.adapter.GetOrders("")
 
@@ -40,11 +42,6 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 	t.Pulses = make(chan int64, 1000)
 	t.PulsarReply = make(chan int64, 1000)
 	t.traderDir = fmt.Sprintf("%s/%s/trader", t.dataDir, t.id)
-
-	t.multiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
-	t.commission = map[util.ContractType]map[string]int{}
-	t.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
-	t.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
 
 	// Ambivalent about need for big, official SerializeAndSaveState() functions..
 	serializedState, _ := ioutil.ReadFile(t.traderDir + "/state")

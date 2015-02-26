@@ -1,6 +1,7 @@
 package simulate
 
 import (
+	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
@@ -13,10 +14,12 @@ const (
 )
 
 type Simulate struct {
-	Id     string         // username
-	Auth   string         // password or whatnot.
-	Token  string         // account access token. (most likely oauth.)
-	Tables map[string]int // "position", "order", "cash", "value" ... "margin"?
+	Id                 string                               // username
+	Auth               string                               // password or whatnot.
+	commission         map[util.ContractType]map[string]int // Commission information.
+	contractMultiplier map[util.ContractType]int            // How many contracts trade per unit of volume.  Generally 1 for stocks and 100 for options.
+	Token              string                               // account access token. (most likely oauth.)
+	Tables             map[string]int                       // "position", "order", "cash", "value" ... "margin"?
 
 	// Mocks.
 	Positions map[string]structs.Position // most likely just util.Positions.
@@ -27,6 +30,12 @@ type Simulate struct {
 
 func New(id string, auth string) *Simulate {
 	s := &Simulate{Id: id, Auth: auth}
+
+	s.contractMultiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
+	s.commission = map[util.ContractType]map[string]int{}
+	s.commission[util.OPTION] = map[string]int{"base": 999, "unit": 75}
+	s.commission[util.STOCK] = map[string]int{"base": 999, "unit": 0}
+
 	s.Token, _ = s.Connect(s.Id, s.Auth, "")
 	s.Tables = map[string]int{"position": 1, "order": 1, "cash": 1, "value": 1}
 
@@ -36,7 +45,32 @@ func New(id string, auth string) *Simulate {
 	s.Positions = map[string]structs.Position{}
 	s.Orders = map[string]structs.Order{}
 
+	// Process pulses.. sift through open orders determine fills?
+	// Or, just, auto-fill orders and call it a day?
+	// Only thing adapter needs to worry about now is +- cash for order value and commissions.
+	//   1. Move order into position if it isn't already there.
+	//   2.
+	// No need for Value updating just yet.
+
 	return s
+}
+
+func (s *Simulate) ClosePosition(positionId string) error {
+	// Not sure if like ClosePosition() idea here.
+	// Adapter doesn't really close it.. just submits an order to "selltoclose"
+
+	// Can return error in event of
+	_, exists := s.Positions[positionId]
+	if !exists {
+		return fmt.Errorf("PositionID: %s, Not found!", positionId)
+	}
+	// take commission.. transfer value to cash.
+
+	return nil
+}
+
+func (s *Simulate) Commission() map[util.ContractType]map[string]int {
+	return s.commission
 }
 
 func (s *Simulate) Connect(id string, auth string, token string) (string, error) {
@@ -44,6 +78,10 @@ func (s *Simulate) Connect(id string, auth string, token string) (string, error)
 		return "", errors.New("Auth Failed for user: %s, auth: %s!")
 	}
 	return TOKEN, nil
+}
+
+func (s *Simulate) ContractMultiplier() map[util.ContractType]int {
+	return s.contractMultiplier
 }
 
 func (s *Simulate) Get(table string, key string) (interface{}, error) {
