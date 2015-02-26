@@ -31,7 +31,7 @@ func New(id string, auth string) *Simulate {
 	s.Tables = map[string]int{"position": 1, "order": 1, "cash": 1, "value": 1}
 
 	// Mocked data.  Not about to make actual http api to simulate external resource.
-	s.Cash = 1000000 * 100 // $1 million in cents.
+	s.Cash = 300000 * 100 // $300k in cents.
 	s.Value = s.Cash
 	s.Positions = map[string]structs.Position{}
 	s.Orders = map[string]structs.Order{}

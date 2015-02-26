@@ -89,6 +89,20 @@ func Test_Simulate_Get(t *testing.T) {
 	}
 }
 
+func Test_Simulate_GetBalances(t *testing.T) {
+	s := New("simulate", "simulation")
+	b, err := s.GetBalances()
+	if err != nil {
+		t.Errorf("Err: %s", err)
+	}
+	if b["cash"] == 0 {
+		t.Errorf("Expected non-zero cash. Got: %d", b["cash"])
+	}
+	if b["value"] == 0 {
+		t.Errorf("Expected non-zero value. Got: %d", b["value"])
+	}
+}
+
 func Test_Simulate_GetOrders(t *testing.T) {
 	s := New("simulate", "simulation")
 
