@@ -152,7 +152,6 @@ func Test_ID(t *testing.T) {
 	if id1 == id2 {
 		t.Errorf("IDs should not be equal!\n%s\n%s", id1, id2)
 	}
-	t.Errorf("\n%s\n%s\n", id1, id2)
 }
 
 func Test_LastSunday(t *testing.T) {
