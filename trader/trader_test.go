@@ -146,7 +146,10 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	// Await shutdown.
 	<-td2.PulsarReply
 
-	td3 := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	a := simulate.New("simulate", "simulation")
+	// Adapter is source of truth for Positions so add them.
+	a.Positions = td2.Positions
+	td3 := New("test-id", "testDir", a)
 	// Verify td3 received state.
 	if td3.CurrentWeekId != td.CurrentWeekId {
 		t.Errorf("Expected: %d, Got: %d", td.CurrentWeekId, td3.CurrentWeekId)
