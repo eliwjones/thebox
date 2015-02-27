@@ -55,16 +55,30 @@ func New(id string, auth string) *Simulate {
 	return s
 }
 
-func (s *Simulate) ClosePosition(positionId string) error {
+func (s *Simulate) ClosePosition(positionId string, limit int) error {
 	// Not sure if like ClosePosition() idea here.
 	// Adapter doesn't really close it.. just submits an order to "selltoclose"
 
 	// Can return error in event of
-	_, exists := s.Positions[positionId]
+	p, exists := s.Positions[positionId]
 	if !exists {
 		return fmt.Errorf("PositionID: %s, Not found!", positionId)
 	}
 	// take commission.. transfer value to cash.
+	commission := s.orderCommission(p.Order)
+	s.Cash -= commission
+	s.Value -= commission
+
+	// Current value of the position gets released to Cash.
+	value := p.Order.Volume * s.contractMultiplier[p.Order.Type] * limit
+	s.Cash += value
+
+	// Delta gets merged into Value.
+	startValue := p.Order.Volume * s.contractMultiplier[p.Order.Type] * p.Order.Limitprice
+	delta := value - startValue
+	s.Value += delta
+
+	delete(s.Positions, p.Id)
 
 	return nil
 }
@@ -137,11 +151,32 @@ func (s *Simulate) GetPositions() (map[string]structs.Position, error) {
 	return s.Positions, nil
 }
 
+func (s *Simulate) orderCommission(o structs.Order) int {
+	return s.commission[o.Type]["base"] + o.Volume*s.commission[o.Type]["unit"]
+}
+
 func (s *Simulate) SubmitOrder(order structs.Order) (string, error) {
 	if s.Token != TOKEN {
 		return "", errors.New("Bad Auth Token!")
 	}
 	orderid := fmt.Sprintf("order-%d", rand.Intn(1000000))
+	order.Id = orderid
 	s.Orders[orderid] = order
+
+	// Fill immediately.
+	// Transfer from Cash to Value.
+	value := order.Volume * s.contractMultiplier[order.Type] * order.Limitprice
+	s.Cash -= value
+
+	// Commission disappears in a puff of smoke.
+	commission := s.orderCommission(order)
+	s.Cash -= commission
+	s.Value -= commission
+
+	// Delete order, Add position.
+	delete(s.Orders, orderid)
+	p := structs.Position{Id: order.Id, Order: order, Fillprice: order.Limitprice}
+	s.Positions[p.Id] = p
+
 	return orderid, nil
 }

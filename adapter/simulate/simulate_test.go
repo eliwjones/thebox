@@ -1,6 +1,7 @@
 package simulate
 
 import (
+	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/interfaces"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -26,6 +27,25 @@ func Test_Simulate_New(t *testing.T) {
 
 	if s.Token != TOKEN {
 		t.Errorf("Should have authed!")
+	}
+}
+
+func Test_Simulate_ClosePosition(t *testing.T) {
+	s := New("simulate", "simulation")
+	startCash := s.Cash
+	oid, _ := s.SubmitOrder(structs.Order{Symbol: "GOOG_OPTION", Type: util.OPTION, Volume: 100, Limitprice: 300})
+	if !(s.Cash < startCash) {
+		t.Errorf("I don't appear to be decrementing Cash.")
+	}
+	if s.Cash == s.Value {
+		t.Errorf("Cash should NOT equal Value! %d == %d", s.Cash, s.Value)
+	}
+	s.ClosePosition(oid, 600)
+	if !(s.Cash > startCash) {
+		t.Errorf("Expected to have more Cash now!")
+	}
+	if s.Cash != s.Value {
+		t.Errorf("Cash should equal Value! %d != %d", s.Cash, s.Value)
 	}
 }
 
@@ -103,28 +123,6 @@ func Test_Simulate_GetBalances(t *testing.T) {
 	}
 }
 
-func Test_Simulate_GetOrders(t *testing.T) {
-	s := New("simulate", "simulation")
-
-	o, err := s.GetOrders("open")
-	if err != nil {
-		t.Errorf("There was an error! err: %s", err)
-	}
-	if len(o) != 0 {
-		t.Errorf("I was not expecting any orders! orders: %+v", o)
-	}
-	s.SubmitOrder(structs.Order{Symbol: "GOOG"})
-	s.SubmitOrder(structs.Order{Symbol: "GOOG"})
-	o, err = s.GetOrders("open")
-	if err != nil {
-		t.Errorf("There was an error! err: %s", err)
-	}
-	if len(o) != 2 {
-		t.Errorf("I was expecting 2 orders! orders: %+v", o)
-	}
-
-}
-
 func Test_Simulate_GetPositions(t *testing.T) {
 	s := New("simulate", "simulation")
 
@@ -135,28 +133,28 @@ func Test_Simulate_GetPositions(t *testing.T) {
 	if len(p) != 0 {
 		t.Errorf("I was not expecting any positions! positions: %+v", p)
 	}
+	s.SubmitOrder(structs.Order{Symbol: "GOOG_OPTION", Type: util.OPTION, Volume: 100, Limitprice: 300})
+	s.SubmitOrder(structs.Order{Symbol: "GOOG_OPTION", Type: util.OPTION, Volume: 100, Limitprice: 300})
+	// Submitted orders instantly turn into positions.
+	p, err = s.GetPositions()
+	if err != nil {
+		t.Errorf("There was an error! err: %s", err)
+	}
+	if len(p) != 2 {
+		t.Errorf("I was expecting 2 positions! positions: %+v", p)
+	}
+
 }
 
 func Test_Simulate_SubmitOrder(t *testing.T) {
 	s := New("simulate", "simulation")
-	o := structs.Order{Symbol: "GOOG"}
+	o := structs.Order{Symbol: "GOOG_OPTION", Type: util.OPTION, Volume: 100, Limitprice: 300}
 	orderkey1, err := s.SubmitOrder(o)
+	o.Id = orderkey1
 	if err != nil {
 		t.Errorf("Expected this order submission to succeed! err: %s", err)
 	}
-	gotOrder, err := s.Get("order", orderkey1)
-	if gotOrder != o {
-		t.Errorf("Expected: %+v, Got: %+v", o, gotOrder)
-	}
-
-	o = structs.Order{Symbol: "AAPL"}
-	orderkey2, err := s.SubmitOrder(o)
-	o1, _ := s.Get("order", orderkey1)
-	o2, _ := s.Get("order", orderkey2)
-	if o1 == o2 {
-		t.Errorf("%+v should not equal %+v!", o1, o2)
-	}
-	if o2 != o {
-		t.Errorf("Expected: %+v, Got: %+v", o, o2)
+	if s.Positions[orderkey1].Order != o {
+		t.Errorf("Expected order to turn into Position!\n%v\n%v", o, s.Positions[orderkey1].Order)
 	}
 }
