@@ -8,7 +8,7 @@ import (
 )
 
 func Test_Pulsar_New(t *testing.T) {
-	p := New("data_dir/now", "0000000000", "9999999999")
+	p := New("data_dir/now", "0000000000", "9999999999", false)
 
 	if p == nil {
 		t.Errorf("Something is broken badly.")
@@ -20,7 +20,7 @@ func Test_Pulsar_New(t *testing.T) {
 }
 
 func Test_Pulsar_Pulsing(t *testing.T) {
-	p := New("data_dir/all", "2222222222", "5555555555")
+	p := New("data_dir/all", "2222222222", "5555555555", true)
 
 	if len(p.pulses) != 4 {
 		t.Errorf("Expected: %d, Got: %d", 4, len(p.pulses))
@@ -32,11 +32,16 @@ func Test_Pulsar_Pulsing(t *testing.T) {
 		reply := make(chan int64, 10)
 		p.Subscribe(tester, tc, reply)
 		go func() {
+			lastPulse := int64(0)
 			for pulse := range tc {
 				reply <- pulse
 				if pulse == -1 {
 					return
 				}
+				if !(pulse > lastPulse) {
+					t.Errorf("Expecting this pulse: %d to be greater than lastPulse: %d", pulse, lastPulse)
+				}
+				lastPulse = pulse
 			}
 		}()
 	}

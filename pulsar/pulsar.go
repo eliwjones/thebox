@@ -7,13 +7,15 @@ import (
 )
 
 type Pulsar struct {
-	pulses  []int64 // tape of pulses to send out.
-	pulsees map[string]chan int64
-	replies map[string]chan int64 // To synchronize, await replies.
+	lockstep bool                  // should wait for reply from pulsee before sending to next pulsee.
+	pulses   []int64               // tape of pulses to send out.
+	pulsees  map[string]chan int64 // who is interested in time.
+	replies  map[string]chan int64 // To synchronize, await replies.
 }
 
-func New(datadir string, start string, stop string) *Pulsar {
+func New(datadir string, start string, stop string, lockstep bool) *Pulsar {
 	p := &Pulsar{}
+	p.lockstep = lockstep
 	p.pulses = loadPulses(datadir, start, stop)
 	p.pulsees = map[string]chan int64{}
 	p.replies = map[string]chan int64{}
@@ -23,18 +25,35 @@ func New(datadir string, start string, stop string) *Pulsar {
 
 func (p *Pulsar) Start() {
 	for _, pulse := range p.pulses {
-		for _, pulsee := range p.pulsees {
+		for id, pulsee := range p.pulsees {
 			pulsee <- pulse
+			if !p.lockstep {
+				// not in lockstop mode, so consume all replies at the end.
+				continue
+			}
+			<-p.replies[id]
 		}
-		// Feels wrong, but don't feel like rolling await-reply functionality into Dispatcher.
+		if p.lockstep {
+			// already consumed replies.
+			continue
+		}
 		for _, reply := range p.replies {
 			<-reply
 		}
 
 	}
 	// Send -1 as shutdown signal.
-	for _, pulsee := range p.pulsees {
+	for id, pulsee := range p.pulsees {
 		pulsee <- int64(-1)
+		if !p.lockstep {
+			// not in lockstop mode, so consume all replies at the end.
+			continue
+		}
+		<-p.replies[id]
+	}
+	if p.lockstep {
+		// already consumed replies.
+		return
 	}
 	for _, reply := range p.replies {
 		<-reply
