@@ -117,6 +117,11 @@ func New(id string, auth string, source string, jsessionid string) *TDAmeritrade
 	return s
 }
 
+func (s *TDAmeritrade) ClosePosition(id string, limit int) error {
+	// Submit "selltoclose" order to TDA.
+	return nil
+}
+
 func (s *TDAmeritrade) Commission() map[util.ContractType]map[string]int {
 	return s.commission
 }
