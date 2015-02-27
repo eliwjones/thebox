@@ -55,14 +55,10 @@ func New(id string, auth string) *Simulate {
 	return s
 }
 
-func (s *Simulate) ClosePosition(positionId string, limit int) error {
-	// Not sure if like ClosePosition() idea here.
-	// Adapter doesn't really close it.. just submits an order to "selltoclose"
-
-	// Can return error in event of
-	p, exists := s.Positions[positionId]
+func (s *Simulate) ClosePosition(id string, limit int) error {
+	p, exists := s.Positions[id]
 	if !exists {
-		return fmt.Errorf("PositionID: %s, Not found!", positionId)
+		return fmt.Errorf("PositionID: %s, Not found!", id)
 	}
 	// take commission.. transfer value to cash.
 	commission := s.orderCommission(p.Order)
