@@ -10,7 +10,16 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
+	"time"
 )
+
+type Tracker struct {
+	Distance      int64 // How far apart should timestamps be?
+	LastSample    int64 // What is timestamp when we last sampled?
+	SamplesNeeded int   // How many should we sample before seeking Max?
+	Samples       []int // History of sampled Bids.
+}
 
 type Trader struct {
 	adapter       interfaces.Adapter                   `json:"-"`             // Adapter already connected to "Broker".
@@ -26,6 +35,7 @@ type Trader struct {
 	Positions     map[string]structs.Position          `json:"positions"`     // Current outstanding positions.
 	Pulses        chan int64                           `json:"-"`             // timestamps from pulsar come here.
 	PulsarReply   chan int64                           `json:"-"`             // Reply back to Pulsar when done doing work.
+	Trackers      map[string]Tracker                   `json:"trackers"`      // Sampled bids for currently open positions.  Used for Optimal Stopping.
 	traderDir     string                               `json:"-"`             // Where to save information pertaining to this instance of trader.
 }
 
@@ -41,6 +51,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 	t.PoIn = make(chan structs.ProtoOrder, 1000)
 	t.Pulses = make(chan int64, 1000)
 	t.PulsarReply = make(chan int64, 1000)
+	t.Trackers = map[string]Tracker{}
 	t.traderDir = fmt.Sprintf("%s/%s/trader", t.dataDir, t.id)
 
 	// Ambivalent about need for big, official SerializeAndSaveState() functions..
@@ -48,7 +59,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 	t.deserializeState(serializedState)
 
 	// Sync may overwrite saved state since adapter is source of truth.
-	t.sync()
+	t.sync(int64(-1))
 
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
@@ -67,11 +78,42 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 			if t.CurrentWeekId != weekID {
 				// init or get allotments.
 				t.Allotments = allotments(t.Balances["cash"], t.Balances["value"])
+				// Anything to log if Tracker is non-empty?
+				// Generally would mean at least one position expired worthless.
+				t.Trackers = map[string]Tracker{}
 
 				t.CurrentWeekId = weekID
 			}
 
-			t.sync()
+			t.sync(timestamp)
+
+			// Sample Bids for Trackers.
+			for positionId, tracker := range t.Trackers {
+				// Get quote for option symbol for current timestamp from collector.
+				q := structs.Option{}
+
+				if tracker.SamplesNeeded > 0 {
+					if timestamp-tracker.LastSample < tracker.Distance {
+						// Not enough time has passed, so move along.
+						continue
+					}
+					t.Trackers[positionId].Samples = append(t.Trackers[positionId].Samples, q.Bid)
+
+					t.Trackers[positionId].SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
+					t.Trackers[positionId].LastSample = timestamp
+				} else {
+					// Check if current bid is greater than max(tracker.Samples)
+					for _, bid := range tracker.Samples {
+						if bid > q.Bid {
+							// Can't be max since sampled item is bigger.
+							break
+						}
+					}
+					// Verify Break correctly ejected.
+					// If break worked, we should have a max.
+					t.adapter.ClosePosition(positionId, q.Bid)
+				}
+			}
 
 			t.PulsarReply <- timestamp
 		}
@@ -142,11 +184,39 @@ func (t *Trader) deserializeState(state []byte) error {
 	t.Balances = dt.Balances
 	t.CurrentWeekId = dt.CurrentWeekId
 	t.Positions = dt.Positions
+	t.Trackers = dt.Trackers
 
 	return nil
 }
 
-func (t *Trader) sync() {
+func (t *Trader) initTracking(p structs.Position, timestamp int64) {
+	// Fake it by estimating.
+	// 40 per day. (assuming 10 min interval.)
+	distance := int(time.Friday) - int(time.Unix(timestamp, 0).Weekday())
+	timestamps := distance * 40
+
+	// Plus however many seconds it is until 16:00:00 "today".
+	// Again, all assuming 10 minute intervals.
+	hour, min, _ := time.Unix(timestamp, 0).Clock()
+	if hour < 16 {
+		timestamps += (16-(hour+1))*6 + (60-min)/10
+	}
+
+	timestamps -= 1             // Feels like this is necessary.
+	timestamps = timestamps / 5 // Really just want 50 minute intervals.
+	interval := int64(50 * 60)  // 50 minutes in seconds.
+
+	tracker := Tracker{Distance: interval}
+	tracker.SamplesNeeded = int(timestamps / math.Exp(1))
+	tracker.Samples = []int{}
+	_, exists := t.Trackers[p.Id]
+	if exists {
+		panic("Someone fucked something up. Either am getting duplicate Order/Position IDs or a Position has disappeared and re-appeared.")
+	}
+	t.Trackers[p.Id] = tracker
+}
+
+func (t *Trader) sync(timestamp int64) {
 	b, err := t.adapter.GetBalances()
 	if err == nil {
 		t.Balances = b
@@ -159,12 +229,14 @@ func (t *Trader) sync() {
 	}
 	currentpositions, err := t.adapter.GetPositions()
 	if err == nil {
-		for id, _ := range t.Positions {
-			_, found := currentpositions[id]
-			if !found {
-				// If position no longer found, must calculate Delta.
-				// Presumably link order-id to position and then back to closing order.
+		for id, _ := range currentpositions {
+			p, found := t.Positions[id]
+			if found {
+				continue
 			}
+			// This is a new position.
+			// Initialize tracker with counter so can start watching Bids.
+			t.initTracking(p, timestamp)
 		}
 
 		t.Positions = currentpositions
