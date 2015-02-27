@@ -90,6 +90,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 			// Sample Bids for Trackers.
 			for positionId, tracker := range t.Trackers {
 				// Get quote for option symbol for current timestamp from collector.
+				// Will need to fix collector.GetQuotes(underlying, timestamp) and add GetQuote(symbol, underlying, timestamp)
 				q := structs.Option{}
 
 				if tracker.SamplesNeeded > 0 {
@@ -97,21 +98,26 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 						// Not enough time has passed, so move along.
 						continue
 					}
-					t.Trackers[positionId].Samples = append(t.Trackers[positionId].Samples, q.Bid)
+					tracker.Samples = append(tracker.Samples, q.Bid)
 
-					t.Trackers[positionId].SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
-					t.Trackers[positionId].LastSample = timestamp
+					tracker.SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
+					tracker.LastSample = timestamp
+
+					t.Trackers[positionId] = tracker
 				} else {
 					// Check if current bid is greater than max(tracker.Samples)
+					isMax := true
 					for _, bid := range tracker.Samples {
 						if bid > q.Bid {
 							// Can't be max since sampled item is bigger.
+							// Could use a labeled break, but feels wrong.
+							isMax = false
 							break
 						}
 					}
-					// Verify Break correctly ejected.
-					// If break worked, we should have a max.
-					t.adapter.ClosePosition(positionId, q.Bid)
+					if isMax {
+						t.adapter.ClosePosition(positionId, q.Bid)
+					}
 				}
 			}
 
@@ -207,7 +213,7 @@ func (t *Trader) initTracking(p structs.Position, timestamp int64) {
 	interval := int64(50 * 60)  // 50 minutes in seconds.
 
 	tracker := Tracker{Distance: interval}
-	tracker.SamplesNeeded = int(timestamps / math.Exp(1))
+	tracker.SamplesNeeded = int(float64(timestamps) / math.Exp(1))
 	tracker.Samples = []int{}
 	_, exists := t.Trackers[p.Id]
 	if exists {
