@@ -115,6 +115,49 @@ func Test_Collector_GetPastNEdges(t *testing.T) {
 	}
 }
 
+func Test_Collector_GetQuote(t *testing.T) {
+	c := New("test", "../cmd/collectord/testdir", int64(60))
+	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
+	utcTimestamp := t1.UTC().Unix()
+
+	symbol := "AAPL_012315C120"
+
+	_, err := c.GetQuote(utcTimestamp, "AAPL", symbol)
+	if err != nil {
+		t.Errorf("Did not expect err: %s", err)
+	}
+	quote, err := c.GetQuote(utcTimestamp, "AAPL", symbol)
+	if err != nil {
+		t.Errorf("Did not expect err: %s", err)
+	}
+	if quote.Symbol != symbol {
+		t.Errorf("Expected: %s, Got: %s", symbol, quote.Symbol)
+	}
+	// Verify it's found in 'cache'
+	_, exists := c.quote[utcTimestamp][symbol]
+	if !exists {
+		t.Errorf("Expected to find in cache!")
+	}
+
+	// Try non-existent symbol.
+	_, err = c.GetQuote(utcTimestamp, "AAPL", "BUHHH")
+	if err == nil {
+		t.Errorf("Should have received error for non-existent symbol.")
+	}
+
+	// Try next timestamp.
+	q2, err := c.GetQuote(utcTimestamp+int64(10*60), "AAPL", symbol)
+	if err != nil {
+		t.Errorf("Err: %s", err)
+	}
+	if q2.Symbol != symbol {
+		t.Errorf("Expected: %s, Got: %s", symbol, q2.Symbol)
+	}
+	if q2.Time == quote.Time {
+		t.Errorf("Expecting mismatched times: %d != %d", q2.Time, quote.Time)
+	}
+}
+
 func Test_Collector_GetQuotes(t *testing.T) {
 	// Munge off of collectord data.
 	c := New("test", "../cmd/collectord/testdir", int64(60))

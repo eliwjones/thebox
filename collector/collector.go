@@ -34,9 +34,11 @@ type Collector struct {
 	Adapter   *tdameritrade.TDAmeritrade
 
 	// Most likely ill-advised lazy load structures.
-	quotes          map[int64][]structs.Option
-	quoteNamespace  string // restrict to first underlying requested.
-	lastQuoteYYMMDD string // track so can reload on new request.
+	// But, in time crunch, and can make sexy when have nothing better to do.  Trading is more important.
+	quote           map[int64]map[string]structs.Option // For holding individual timestamped quotes. (Trader likes this)
+	quotes          map[int64][]structs.Option          // For holding all of the quotes. (Destiny likes this)
+	quoteNamespace  string                              // restrict to first underlying requested.
+	lastQuoteYYMMDD string                              // track so can reload on new request.
 }
 
 type target struct {
@@ -72,6 +74,7 @@ func New(id string, rootdir string, period int64) *Collector {
 
 	c.period = period
 	c.pipe = make(chan structs.Message, 10000)
+	c.quote = map[int64]map[string]structs.Option{}
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
 
@@ -439,6 +442,29 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	return pastNEdges
 }
 
+func (c *Collector) GetQuote(utcTimestamp int64, underlying string, symbol string) (structs.Option, error) {
+	quote, exists := c.quote[utcTimestamp][symbol]
+	if exists {
+		return quote, nil
+	}
+	_, exists = c.quote[utcTimestamp]
+	if !exists {
+		c.quote[utcTimestamp] = map[string]structs.Option{}
+	}
+	quotes, err := c.GetQuotes(utcTimestamp, underlying)
+	for _, q := range quotes {
+		if q.Symbol == symbol {
+			quote = q
+			c.quote[utcTimestamp][symbol] = quote
+			break
+		}
+	}
+	if quote.Symbol != symbol {
+		err = fmt.Errorf("Could not find symbol: %s!", symbol)
+	}
+	return quote, err
+}
+
 func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.Option, error) {
 	// Lazy load entire day and stuff into map[int64][]structs.Option{} ??
 	// Only allow GetQuotes() one underlying symbol per collector instance. ??
@@ -454,6 +480,7 @@ func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.
 	}
 
 	// Gigantic race condition without something blocking.. or some sort of channel controlling access to this.
+	// With Lockstep mode in Pulsar, can punt on this until I want to have multiple traders requesting data.
 
 	c.quotes = map[int64][]structs.Option{}
 
