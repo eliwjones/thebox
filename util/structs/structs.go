@@ -65,10 +65,11 @@ type Position struct {
 }
 
 type ProtoOrder struct {
-	Symbol    string            // "GOOG", "GOOG_030615C620"
-	Type      util.ContractType // util.OPTION, util.STOCK
-	LimitOpen int               // Set by Destiny from chosen edge.
-	Timestamp int64             // Suppose they may could expire..?
+	LimitOpen  int               // Set by Destiny from chosen edge.
+	Symbol     string            // "GOOG", "GOOG_030615C620"
+	Timestamp  int64             // Suppose they may could expire..?
+	Type       util.ContractType // util.OPTION, util.STOCK
+	Underlying string            // Tacking this in here to facilitate Trader GetQuote() lookups.
 
 	Reply chan interface{} `json:"-"`
 }

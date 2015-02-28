@@ -100,6 +100,7 @@ func (d *Destiny) processPulses() {
 			po.Symbol = matchOption.Symbol
 			po.LimitOpen = matchOption.Ask
 			po.Type = util.OPTION
+			po.Underlying = d.underlying
 
 			// Send to ProtoOrder Channel.
 			d.PoC <- po

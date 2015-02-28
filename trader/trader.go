@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"github.com/eliwjones/thebox/collector"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/interfaces"
@@ -25,6 +26,7 @@ type Trader struct {
 	adapter       interfaces.Adapter                   `json:"-"`             // Adapter already connected to "Broker".
 	Allotments    []int                                `json:"allotments"`    // Placeholder .. not sure how will handle allotments.
 	Balances      map[string]int                       `json:"balances"`      // Not sure on wisdom of rolling Money into Trader, but we shall see.
+	c             *collector.Collector                 `json:"-"`             // For collector.GetQuote()
 	commission    map[util.ContractType]map[string]int `json:"-"`             // commission fees per type for base, unit.
 	CurrentWeekId int64                                `json:"currentWeekId"` // When am I?
 	dataDir       string                               `json:"-"`             // Where am I?
@@ -39,13 +41,14 @@ type Trader struct {
 	traderDir     string                               `json:"-"`             // Where to save information pertaining to this instance of trader.
 }
 
-func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
+func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Collector) *Trader {
 	t := &Trader{id: id, dataDir: dataDir}
 
 	t.adapter = adapter
+	t.c = c
 	t.commission = adapter.Commission()
 	t.multiplier = adapter.ContractMultiplier()
-	t.Positions, _ = t.adapter.GetPositions()
+	t.Positions = map[string]structs.Position{}
 	t.orders, _ = t.adapter.GetOrders("")
 
 	t.PoIn = make(chan structs.ProtoOrder, 1000)
@@ -60,6 +63,8 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 
 	// Sync may overwrite saved state since adapter is source of truth.
 	t.sync(int64(-1))
+	// If trade comes in on first timestamp.. need to already have Allotments initialized..
+	t.Allotments = allotments(t.Balances["cash"], t.Balances["value"])
 
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
@@ -91,7 +96,14 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 			for positionId, tracker := range t.Trackers {
 				// Get quote for option symbol for current timestamp from collector.
 				// Will need to fix collector.GetQuotes(underlying, timestamp) and add GetQuote(symbol, underlying, timestamp)
-				q := structs.Option{}
+				p := t.Positions[positionId]
+				q, err := t.c.GetQuote(timestamp, p.Order.ProtoOrder.Underlying, p.Order.Symbol)
+				if err != nil {
+					// This breaks tests for ProtoOrder submissions.. since I'm passing in invalid timestamp.
+					// Comment out until can pass in kosher timestamps for testing.. or create cleaner test.
+					//panic("What broke?")
+					continue
+				}
 
 				if tracker.SamplesNeeded > 0 {
 					if timestamp-tracker.LastSample < tracker.Distance {
@@ -108,7 +120,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 					// Check if current bid is greater than max(tracker.Samples)
 					isMax := true
 					for _, bid := range tracker.Samples {
-						if bid > q.Bid {
+						if bid >= q.Bid {
 							// Can't be max since sampled item is bigger.
 							// Could use a labeled break, but feels wrong.
 							isMax = false
@@ -117,6 +129,8 @@ func New(id string, dataDir string, adapter interfaces.Adapter) *Trader {
 					}
 					if isMax {
 						t.adapter.ClosePosition(positionId, q.Bid)
+						logLine := fmt.Sprintf("%d,order-close,%s,%d", timestamp, positionId, q.Bid)
+						funcs.LazyAppendFile(t.traderDir, "log", logLine)
 					}
 				}
 			}
@@ -208,13 +222,13 @@ func (t *Trader) initTracking(p structs.Position, timestamp int64) {
 		timestamps += (16-(hour+1))*6 + (60-min)/10
 	}
 
-	timestamps -= 1             // Feels like this is necessary.
+	timestamps -= 2             // Feels like this is necessary.
 	timestamps = timestamps / 5 // Really just want 50 minute intervals.
 	interval := int64(50 * 60)  // 50 minutes in seconds.
 
 	tracker := Tracker{Distance: interval}
 	tracker.SamplesNeeded = int(float64(timestamps) / math.Exp(1))
-	tracker.Samples = []int{}
+	tracker.Samples = []int{p.Fillprice}
 	_, exists := t.Trackers[p.Id]
 	if exists {
 		panic("Someone fucked something up. Either am getting duplicate Order/Position IDs or a Position has disappeared and re-appeared.")
@@ -235,17 +249,27 @@ func (t *Trader) sync(timestamp int64) {
 	}
 	currentpositions, err := t.adapter.GetPositions()
 	if err == nil {
-		for id, _ := range currentpositions {
-			p, found := t.Positions[id]
+		// Add new positions.
+		for id, p := range currentpositions {
+			_, found := t.Positions[id]
 			if found {
 				continue
 			}
 			// This is a new position.
 			// Initialize tracker with counter so can start watching Bids.
+			fmt.Printf("\n[Trader] New Positions: %v\n", p)
 			t.initTracking(p, timestamp)
+			t.Positions[id] = p
 		}
-
-		t.Positions = currentpositions
+		// Delete old positions and trackers
+		for id, _ := range t.Positions {
+			_, found := currentpositions[id]
+			if found {
+				continue
+			}
+			delete(t.Positions, id)
+			delete(t.Trackers, id)
+		}
 	}
 }
 

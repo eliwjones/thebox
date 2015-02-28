@@ -2,6 +2,7 @@ package trader
 
 import (
 	"github.com/eliwjones/thebox/adapter/simulate"
+	"github.com/eliwjones/thebox/collector"
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -17,6 +18,7 @@ func constructValidStockProtoOrder(td *Trader) structs.ProtoOrder {
 	po.Type = util.STOCK
 	po.Symbol = "GOOG"
 	po.LimitOpen = 1000
+	po.Underlying = "GOOG"
 
 	return po
 }
@@ -26,19 +28,25 @@ func constructValidOptionProtoOrder(td *Trader) structs.ProtoOrder {
 	po.Type = util.OPTION
 	po.Symbol = "GOOG MAY 2014 1234 PUT"
 	po.LimitOpen = 1000
+	po.Underlying = "GOOG"
 
 	return po
 }
 
+func testTrader() *Trader {
+	c := collector.New("test", "./testdir", int64(60))
+	return New("test-id", "testDir", simulate.New("simulate", "simulation"), c)
+}
+
 func Test_Trader_New(t *testing.T) {
-	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td := testTrader()
 	if td == nil {
 		t.Errorf("Trader New() call failed!")
 	}
 }
 
 func Test_Trader_constructOrder_Option(t *testing.T) {
-	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td := testTrader()
 
 	po := constructValidOptionProtoOrder(td)
 	minCommission := td.commission[util.OPTION]["base"] + td.commission[util.OPTION]["unit"]
@@ -57,7 +65,7 @@ func Test_Trader_constructOrder_Option(t *testing.T) {
 }
 
 func Test_Trader_constructOrder_Stock(t *testing.T) {
-	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td := testTrader()
 
 	po := constructValidStockProtoOrder(td)
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
@@ -77,7 +85,7 @@ func Test_Trader_constructOrder_Stock(t *testing.T) {
 }
 
 func Test_Trader_Processor_ProtoOrder(t *testing.T) {
-	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td := testTrader()
 
 	po := constructValidStockProtoOrder(td)
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
@@ -110,7 +118,7 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	os.RemoveAll("testDir")
 
-	td := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td := testTrader()
 
 	td.CurrentWeekId = int64(9999)
 	td.Allotments = allotments(td.Balances["cash"], td.Balances["value"])
@@ -127,7 +135,7 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	td2 := New("test-id", "testDir", simulate.New("simulate", "simulation"))
+	td2 := testTrader()
 	td2.deserializeState(st)
 
 	// Verify td2 received state.
@@ -149,7 +157,8 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	a := simulate.New("simulate", "simulation")
 	// Adapter is source of truth for Positions so add them.
 	a.Positions = td2.Positions
-	td3 := New("test-id", "testDir", a)
+	c := collector.New("test", "./testdir", int64(60))
+	td3 := New("test-id", "testDir", a, c)
 	// Verify td3 received state.
 	if td3.CurrentWeekId != td.CurrentWeekId {
 		t.Errorf("Expected: %d, Got: %d", td.CurrentWeekId, td3.CurrentWeekId)
