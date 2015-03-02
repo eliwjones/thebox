@@ -17,7 +17,9 @@ import (
 
 type Tracker struct {
 	Distance      int64 // How far apart should timestamps be?
+	LastTimestamp int64 // Need to know when to look for max.
 	LastSample    int64 // What is timestamp when we last sampled?
+	RemainingTS   int   // How many left so can calculate backoff.
 	SamplesNeeded int   // How many should we sample before seeking Max?
 	Samples       []int // History of sampled Bids.
 }
@@ -105,11 +107,13 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 					continue
 				}
 
+				if timestamp-tracker.LastTimestamp < tracker.Distance {
+					// Not enough time has passed, so move along.
+					continue
+				}
+				tracker.LastTimestamp = timestamp
+				tracker.RemainingTS -= 1
 				if tracker.SamplesNeeded > 0 {
-					if timestamp-tracker.LastSample < tracker.Distance {
-						// Not enough time has passed, so move along.
-						continue
-					}
 					tracker.Samples = append(tracker.Samples, q.Bid)
 
 					tracker.SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
@@ -119,14 +123,23 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 				} else {
 					// Check if current bid is greater than max(tracker.Samples)
 					isMax := true
+
+					// Poor Man's Backoff.
+					canBeLessThan := len(tracker.Samples) - tracker.RemainingTS/2
+
 					for _, bid := range tracker.Samples {
 						if bid >= q.Bid {
+							if canBeLessThan > 0 {
+								canBeLessThan -= 1
+								continue
+							}
 							// Can't be max since sampled item is bigger.
 							// Could use a labeled break, but feels wrong.
 							isMax = false
 							break
 						}
 					}
+					t.Trackers[positionId] = tracker
 					if isMax {
 						t.adapter.ClosePosition(positionId, q.Bid)
 						logLine := fmt.Sprintf("%d,order-close,%s,%d", timestamp, positionId, q.Bid)
@@ -162,7 +175,11 @@ func (t *Trader) constructOrder(po structs.ProtoOrder, allotment int) (structs.O
 func (t *Trader) consumePoIn(timestamp int64) {
 	for len(t.PoIn) > 0 {
 		po := <-t.PoIn
-		o, err := t.constructOrder(po, t.Allotments[0])
+		allotment := 0
+		if len(t.Allotments) > 0 {
+			allotment, t.Allotments = t.Allotments[0], t.Allotments[1:]
+		}
+		o, err := t.constructOrder(po, allotment)
 		if err != nil {
 			if po.Reply != nil {
 				po.Reply <- po
@@ -226,9 +243,12 @@ func (t *Trader) initTracking(p structs.Position, timestamp int64) {
 	timestamps = timestamps / 5 // Really just want 50 minute intervals.
 	interval := int64(50 * 60)  // 50 minutes in seconds.
 
-	tracker := Tracker{Distance: interval}
+	tracker := Tracker{Distance: interval, RemainingTS: timestamps}
 	tracker.SamplesNeeded = int(float64(timestamps) / math.Exp(1))
+
 	tracker.Samples = []int{p.Fillprice}
+	tracker.LastSample = timestamp
+	tracker.LastTimestamp = timestamp
 	_, exists := t.Trackers[p.Id]
 	if exists {
 		panic("Someone fucked something up. Either am getting duplicate Order/Position IDs or a Position has disappeared and re-appeared.")
@@ -275,9 +295,9 @@ func (t *Trader) sync(timestamp int64) {
 
 func allotments(cash int, value int) []int {
 	a := cash / 100
-	// 15 1% allotments
+	// 10 1% allotments
 	allotments := []int{}
-	for i := 0; i < 15; i++ {
+	for i := 0; i < 10; i++ {
 		allotments = append(allotments, a)
 	}
 	return allotments
