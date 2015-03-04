@@ -111,10 +111,14 @@ func New(id string, auth string, source string, jsessionid string) *TDAmeritrade
 	resources, _ := s.GetBalances()
 	s.Cash = resources["cash"]
 	s.Value = resources["value"]
-	s.Positions = map[string]structs.Position{}
-	s.Orders = map[string]structs.Order{}
+	s.Reset()
 
 	return s
+}
+
+func (s *TDAmeritrade) Reset() {
+	s.Positions = map[string]structs.Position{}
+	s.Orders = map[string]structs.Order{}
 }
 
 func (s *TDAmeritrade) ClosePosition(id string, limit int) error {

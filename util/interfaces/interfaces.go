@@ -12,6 +12,7 @@ type Adapter interface {
 	Connect(id string, auth string, token string) (string, error) // Connect.
 	GetBalances() (map[string]int, error)                         // Returns values in cents, "cash", "value" ("stock"? "option"?)
 	GetOrders(filter string) (map[string]structs.Order, error)    // "open", "filled"
-	GetPositions() (map[string]structs.Position, error)
+	GetPositions() (map[string]structs.Position, error)           // Return curren view of Positions.
+	Reset()                                                       // Reset all orders, positions, and value.
 	SubmitOrder(order structs.Order) (string, error)
 }

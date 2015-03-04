@@ -10,20 +10,20 @@ import (
 
 func Test_Simulate_Adapter(t *testing.T) {
 	var a interfaces.Adapter
-	a = New("simulate", "simulation")
+	a = New("simulate", "simulation", 300000*100)
 	if a == nil {
 		t.Errorf("%+v", a)
 	}
 }
 
 func Test_Simulate_New(t *testing.T) {
-	s := New("simulate", "simulator")
+	s := New("simulate", "simulator", 300000*100)
 
 	if s.Token == TOKEN {
 		t.Errorf("Should not have authed!")
 	}
 
-	s = New("simulate", "simulation")
+	s = New("simulate", "simulation", 300000*100)
 
 	if s.Token != TOKEN {
 		t.Errorf("Should have authed!")
@@ -31,7 +31,7 @@ func Test_Simulate_New(t *testing.T) {
 }
 
 func Test_Simulate_ClosePosition(t *testing.T) {
-	s := New("simulate", "simulation")
+	s := New("simulate", "simulation", 300000*100)
 	startCash := s.Cash
 	oid, _ := s.SubmitOrder(structs.Order{Symbol: "GOOG_OPTION", Type: util.OPTION, Volume: 100, Limitprice: 300})
 	if !(s.Cash < startCash) {
@@ -59,7 +59,7 @@ func Test_Simulate_Connect(t *testing.T) {
 }
 
 func Test_Simulate_Get(t *testing.T) {
-	s := New("simulate", "simulation")
+	s := New("simulate", "simulation", 300000*100)
 
 	_, err := s.Get("thang", "thing")
 	if err == nil {
@@ -110,7 +110,7 @@ func Test_Simulate_Get(t *testing.T) {
 }
 
 func Test_Simulate_GetBalances(t *testing.T) {
-	s := New("simulate", "simulation")
+	s := New("simulate", "simulation", 300000*100)
 	b, err := s.GetBalances()
 	if err != nil {
 		t.Errorf("Err: %s", err)
@@ -124,7 +124,7 @@ func Test_Simulate_GetBalances(t *testing.T) {
 }
 
 func Test_Simulate_GetPositions(t *testing.T) {
-	s := New("simulate", "simulation")
+	s := New("simulate", "simulation", 300000*100)
 
 	p, err := s.GetPositions()
 	if err != nil {
@@ -147,7 +147,7 @@ func Test_Simulate_GetPositions(t *testing.T) {
 }
 
 func Test_Simulate_SubmitOrder(t *testing.T) {
-	s := New("simulate", "simulation")
+	s := New("simulate", "simulation", 300000*100)
 	o := structs.Order{Symbol: "GOOG_OPTION", Type: util.OPTION, Volume: 100, Limitprice: 300}
 	orderkey1, err := s.SubmitOrder(o)
 	o.Id = orderkey1

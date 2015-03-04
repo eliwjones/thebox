@@ -28,7 +28,7 @@ type Simulate struct {
 	Value     int                         // total account value (cash + position value).
 }
 
-func New(id string, auth string) *Simulate {
+func New(id string, auth string, cash int) *Simulate {
 	s := &Simulate{Id: id, Auth: auth}
 
 	s.contractMultiplier = map[util.ContractType]int{util.OPTION: 100, util.STOCK: 1}
@@ -40,10 +40,8 @@ func New(id string, auth string) *Simulate {
 	s.Tables = map[string]int{"position": 1, "order": 1, "cash": 1, "value": 1}
 
 	// Mocked data.  Not about to make actual http api to simulate external resource.
-	s.Cash = 300000 * 100 // $300k in cents.
-	s.Value = s.Cash
-	s.Positions = map[string]structs.Position{}
-	s.Orders = map[string]structs.Order{}
+	s.Cash = cash
+	s.Reset()
 
 	// Process pulses.. sift through open orders determine fills?
 	// Or, just, auto-fill orders and call it a day?
@@ -53,6 +51,13 @@ func New(id string, auth string) *Simulate {
 	// No need for Value updating just yet.
 
 	return s
+}
+
+func (s *Simulate) Reset() {
+	// Called when crossing week boundaries.
+	s.Value = s.Cash
+	s.Positions = map[string]structs.Position{}
+	s.Orders = map[string]structs.Order{}
 }
 
 func (s *Simulate) ClosePosition(id string, limit int) error {
