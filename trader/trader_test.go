@@ -35,7 +35,7 @@ func constructValidOptionProtoOrder(td *Trader) structs.ProtoOrder {
 
 func testTrader() *Trader {
 	c := collector.New("test", "./testdir", int64(60))
-	return New("test-id", "testDir", simulate.New("simulate", "simulation"), c)
+	return New("test-id", "testDir", simulate.New("simulate", "simulation", 300000*100), c)
 }
 
 func Test_Trader_New(t *testing.T) {
@@ -61,6 +61,12 @@ func Test_Trader_constructOrder_Option(t *testing.T) {
 	o, err = td.constructOrder(po, allotment)
 	if err == nil {
 		t.Errorf("Should not be able to fill this order: %+v", o)
+	}
+
+	allotment = 0
+	o, err = td.constructOrder(po, allotment)
+	if err == nil {
+		t.Errorf("Should not be able to fill an order with allotment = 0")
 	}
 }
 
@@ -154,7 +160,7 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	// Await shutdown.
 	<-td2.PulsarReply
 
-	a := simulate.New("simulate", "simulation")
+	a := simulate.New("simulate", "simulation", 300000*100)
 	// Adapter is source of truth for Positions so add them.
 	a.Positions = td2.Positions
 	c := collector.New("test", "./testdir", int64(60))
