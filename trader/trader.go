@@ -37,10 +37,12 @@ type Trader struct {
 	orders        map[string]structs.Order             `json:"-"`             // Open (Closed?) orders.
 	PoIn          chan structs.ProtoOrder              `json:"-"`             // Generally, ProtoOrders coming in.
 	Positions     map[string]structs.Position          `json:"positions"`     // Current outstanding positions.
+	PositionCount int                                  `json:"positioncount"` // How many Positions have I opened?
 	Pulses        chan int64                           `json:"-"`             // timestamps from pulsar come here.
 	PulsarReply   chan int64                           `json:"-"`             // Reply back to Pulsar when done doing work.
 	Trackers      map[string]Tracker                   `json:"trackers"`      // Sampled bids for currently open positions.  Used for Optimal Stopping.
 	traderDir     string                               `json:"-"`             // Where to save information pertaining to this instance of trader.
+	WeekCount     int                                  `json:"weekcount"`     // Count weeks I have seen.
 }
 
 func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Collector) *Trader {
@@ -71,6 +73,22 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
 		for timestamp := range t.Pulses {
+			weekID := funcs.WeekID(timestamp)
+			if t.CurrentWeekId != weekID && timestamp != -1 {
+				// Reset any open Positions as they have expired worthless.
+				t.Positions = map[string]structs.Position{}
+				t.adapter.Reset()
+
+				t.WeekCount += 1
+
+				// init or get allotments.
+				t.Allotments = allotments(t.Balances["cash"], t.Balances["value"])
+				// Anything to log if Tracker is non-empty?
+				// Generally would mean at least one position expired worthless.
+				t.Trackers = map[string]Tracker{}
+
+				t.CurrentWeekId = weekID
+			}
 			t.consumePoIn(timestamp)
 
 			if timestamp == -1 {
@@ -80,16 +98,6 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 
 				t.PulsarReply <- timestamp
 				return
-			}
-			weekID := funcs.WeekID(timestamp)
-			if t.CurrentWeekId != weekID {
-				// init or get allotments.
-				t.Allotments = allotments(t.Balances["cash"], t.Balances["value"])
-				// Anything to log if Tracker is non-empty?
-				// Generally would mean at least one position expired worthless.
-				t.Trackers = map[string]Tracker{}
-
-				t.CurrentWeekId = weekID
 			}
 
 			t.sync(timestamp)
@@ -221,7 +229,9 @@ func (t *Trader) deserializeState(state []byte) error {
 	t.Balances = dt.Balances
 	t.CurrentWeekId = dt.CurrentWeekId
 	t.Positions = dt.Positions
+	t.PositionCount = dt.PositionCount
 	t.Trackers = dt.Trackers
+	t.WeekCount = dt.WeekCount
 
 	return nil
 }
@@ -280,6 +290,7 @@ func (t *Trader) sync(timestamp int64) {
 			fmt.Printf("\n[Trader] New Positions: %v\n", p)
 			t.initTracking(p, timestamp)
 			t.Positions[id] = p
+			t.PositionCount += 1
 		}
 		// Delete old positions and trackers
 		for id, _ := range t.Positions {
