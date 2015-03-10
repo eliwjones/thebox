@@ -34,6 +34,8 @@ func constructValidOptionProtoOrder(td *Trader) structs.ProtoOrder {
 }
 
 func testTrader() *Trader {
+	os.RemoveAll("testDir")
+
 	c := collector.New("test", "./testdir", int64(60))
 	return New("test-id", "testDir", simulate.New("simulate", "simulation", 300000*100), c)
 }

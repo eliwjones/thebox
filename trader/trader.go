@@ -15,6 +15,20 @@ import (
 	"time"
 )
 
+type History struct {
+	Commission    int    // How much is commission to open trade (presumably would be same to close.)
+	Closed        bool   // Did position successfully close?
+	LimitClose    int    // Limit for closing position.
+	MaxClose      int    // What does GetMax(timestamp, underlying, symbol) show was MaxBid.
+	MaxTimestamp  int64  // When did MaxBid occur.
+	Open          int    // Open price for position.
+	OpenTimestamp int64  // When was position opened.
+	Symbol        string // Option symbol.
+	Timestamp     int64  // When was position closed.
+	Underlying    string // Underlying.. still funky that need this for querying collector.
+	Volume        int    // How many.
+}
+
 type Tracker struct {
 	Distance      int64 // How far apart should timestamps be?
 	LastTimestamp int64 // Need to know when to look for max.
@@ -25,24 +39,25 @@ type Tracker struct {
 }
 
 type Trader struct {
-	adapter       interfaces.Adapter                   `json:"-"`             // Adapter already connected to "Broker".
-	Allotments    []int                                `json:"allotments"`    // Placeholder .. not sure how will handle allotments.
-	Balances      map[string]int                       `json:"balances"`      // Not sure on wisdom of rolling Money into Trader, but we shall see.
-	c             *collector.Collector                 `json:"-"`             // For collector.GetQuote()
-	commission    map[util.ContractType]map[string]int `json:"-"`             // commission fees per type for base, unit.
-	CurrentWeekId int64                                `json:"currentWeekId"` // When am I?
-	dataDir       string                               `json:"-"`             // Where am I?
-	id            string                               `json:"-"`             // Who am I?
-	multiplier    map[util.ContractType]int            `json:"-"`             // Stocks trade in units of 1, Options in units of 100.
-	orders        map[string]structs.Order             `json:"-"`             // Open (Closed?) orders.
-	PoIn          chan structs.ProtoOrder              `json:"-"`             // Generally, ProtoOrders coming in.
-	Positions     map[string]structs.Position          `json:"positions"`     // Current outstanding positions.
-	PositionCount int                                  `json:"positioncount"` // How many Positions have I opened?
-	Pulses        chan int64                           `json:"-"`             // timestamps from pulsar come here.
-	PulsarReply   chan int64                           `json:"-"`             // Reply back to Pulsar when done doing work.
-	Trackers      map[string]Tracker                   `json:"trackers"`      // Sampled bids for currently open positions.  Used for Optimal Stopping.
-	traderDir     string                               `json:"-"`             // Where to save information pertaining to this instance of trader.
-	WeekCount     int                                  `json:"weekcount"`     // Count weeks I have seen.
+	adapter       interfaces.Adapter                   `json:"-"`                   // Adapter already connected to "Broker".
+	Allotments    []int                                `json:"allotments"`          // Placeholder .. not sure how will handle allotments.
+	Balances      map[string]int                       `json:"balances"`            // Not sure on wisdom of rolling Money into Trader, but we shall see.
+	c             *collector.Collector                 `json:"-"`                   // For collector.GetQuote()
+	commission    map[util.ContractType]map[string]int `json:"-"`                   // commission fees per type for base, unit.
+	CurrentWeekId int64                                `json:"currentWeekId"`       // When am I?
+	dataDir       string                               `json:"-"`                   // Where am I?
+	Histories     map[string]History                   `json:"histories,omitempty"` // Map of History by position-id.
+	id            string                               `json:"-"`                   // Who am I?
+	multiplier    map[util.ContractType]int            `json:"-"`                   // Stocks trade in units of 1, Options in units of 100.
+	orders        map[string]structs.Order             `json:"-"`                   // Open (Closed?) orders.
+	PoIn          chan structs.ProtoOrder              `json:"-"`                   // Generally, ProtoOrders coming in.
+	Positions     map[string]structs.Position          `json:"positions"`           // Current outstanding positions.
+	PositionCount int                                  `json:"positioncount"`       // How many Positions have I opened?
+	Pulses        chan int64                           `json:"-"`                   // timestamps from pulsar come here.
+	PulsarReply   chan int64                           `json:"-"`                   // Reply back to Pulsar when done doing work.
+	Trackers      map[string]Tracker                   `json:"trackers"`            // Sampled bids for currently open positions.  Used for Optimal Stopping.
+	traderDir     string                               `json:"-"`                   // Where to save information pertaining to this instance of trader.
+	WeekCount     int                                  `json:"weekcount"`           // Count weeks I have seen.
 }
 
 func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Collector) *Trader {
@@ -52,6 +67,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 	t.c = c
 	t.commission = adapter.Commission()
 	t.multiplier = adapter.ContractMultiplier()
+	t.Histories = map[string]History{}
 	t.Positions = map[string]structs.Position{}
 	t.orders, _ = t.adapter.GetOrders("")
 
@@ -121,14 +137,8 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 				}
 				tracker.LastTimestamp = timestamp
 				tracker.RemainingTS -= 1
-				if tracker.SamplesNeeded > 0 {
-					tracker.Samples = append(tracker.Samples, q.Bid)
 
-					tracker.SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
-					tracker.LastSample = timestamp
-
-					t.Trackers[positionId] = tracker
-				} else {
+				if tracker.SamplesNeeded <= 0 || timestamp > p.Order.ProtoOrder.LimitTS {
 					// Check if current bid is greater than max(tracker.Samples)
 					isMax := true
 
@@ -150,9 +160,26 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 					t.Trackers[positionId] = tracker
 					if isMax {
 						t.adapter.ClosePosition(positionId, q.Bid)
+
+						// Add new info to Histories.
+						history := t.Histories[positionId]
+						history.LimitClose = q.Bid
+						history.Timestamp = timestamp
+						t.Histories[positionId] = history
+
 						logLine := fmt.Sprintf("%d,order-close,%s,%d", timestamp, positionId, q.Bid)
 						funcs.LazyAppendFile(t.traderDir, "log", logLine)
+						continue
 					}
+				}
+
+				if tracker.SamplesNeeded > 0 {
+					tracker.Samples = append(tracker.Samples, q.Bid)
+
+					tracker.SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
+					tracker.LastSample = timestamp
+
+					t.Trackers[positionId] = tracker
 				}
 			}
 
@@ -228,12 +255,25 @@ func (t *Trader) deserializeState(state []byte) error {
 	t.Allotments = dt.Allotments
 	t.Balances = dt.Balances
 	t.CurrentWeekId = dt.CurrentWeekId
+	t.Histories = dt.Histories
 	t.Positions = dt.Positions
 	t.PositionCount = dt.PositionCount
 	t.Trackers = dt.Trackers
 	t.WeekCount = dt.WeekCount
 
 	return nil
+}
+
+func (t *Trader) initHistory(p structs.Position, timestamp int64) {
+	history := History{}
+	history.Commission = p.Commission
+	history.Open = p.Fillprice
+	history.OpenTimestamp = timestamp
+	history.Symbol = p.Order.Symbol
+	history.Underlying = p.Order.ProtoOrder.Underlying
+	history.Volume = p.Order.Volume
+
+	t.Histories[p.Id] = history
 }
 
 func (t *Trader) initTracking(p structs.Position, timestamp int64) {
@@ -289,6 +329,7 @@ func (t *Trader) sync(timestamp int64) {
 			// Initialize tracker with counter so can start watching Bids.
 			fmt.Printf("\n[Trader] New Positions: %v\n", p)
 			t.initTracking(p, timestamp)
+			t.initHistory(p, timestamp)
 			t.Positions[id] = p
 			t.PositionCount += 1
 		}
@@ -300,6 +341,11 @@ func (t *Trader) sync(timestamp int64) {
 			}
 			delete(t.Positions, id)
 			delete(t.Trackers, id)
+
+			// Is it really necessary to always do this dance with a map[string]struct{} ?
+			history := t.Histories[id]
+			history.Closed = true
+			t.Histories[id] = history
 		}
 	}
 }
