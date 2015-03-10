@@ -120,7 +120,7 @@ func ID(underlying string, weeksBack int, multiplier float64, realTime bool) str
 	rand.Seed(time.Now().UnixNano())
 
 	id := fmt.Sprintf("%s_%02d_%.2f", underlying, weeksBack, multiplier)
-	randomN := rand.Intn(1000)
+	randomN := rand.Intn(100000)
 	if realTime {
 		id += fmt.Sprintf("_realtime_%04d", randomN)
 	} else {
