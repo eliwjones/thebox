@@ -62,10 +62,12 @@ type Position struct {
 	Id        string // Some sort of id provided by api adapter?  (Thus can submit stop limit order for buytoclose).
 	Order     Order  // Order that position originated from.
 	Fillprice int    // price per unit paid in cents.
+	Commission int   // How much commission is required to Open, Close position.
 }
 
 type ProtoOrder struct {
 	LimitOpen  int               // Set by Destiny from chosen edge.
+	LimitTS    int64             // Given edge used to construct this, when might we expect a maximum by?
 	Symbol     string            // "GOOG", "GOOG_030615C620"
 	Timestamp  int64             // Suppose they may could expire..?
 	Type       util.ContractType // util.OPTION, util.STOCK

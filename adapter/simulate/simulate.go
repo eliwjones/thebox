@@ -176,7 +176,7 @@ func (s *Simulate) SubmitOrder(order structs.Order) (string, error) {
 
 	// Delete order, Add position.
 	delete(s.Orders, orderid)
-	p := structs.Position{Id: order.Id, Order: order, Fillprice: order.Limitprice}
+	p := structs.Position{Id: order.Id, Order: order, Fillprice: order.Limitprice, Commission: commission}
 	s.Positions[p.Id] = p
 
 	return orderid, nil

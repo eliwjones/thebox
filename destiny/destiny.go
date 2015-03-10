@@ -94,11 +94,15 @@ func (d *Destiny) processPulses() {
 				continue
 			}
 
+			// Seconds to Max
+			secondsToMax := edge.MaxTimestamp - edge.Timestamp
+			
 			// Construct PO.
 			po := structs.ProtoOrder{}
 			po.Timestamp = timestamp
 			po.Symbol = matchOption.Symbol
 			po.LimitOpen = matchOption.Ask
+			po.LimitTS = timestamp + secondsToMax
 			po.Type = util.OPTION
 			po.Underlying = d.underlying
 
