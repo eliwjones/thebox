@@ -35,10 +35,14 @@ type Collector struct {
 
 	// Most likely ill-advised lazy load structures.
 	// But, in time crunch, and can make sexy when have nothing better to do.  Trading is more important.
-	quote           map[int64]map[string]structs.Option // For holding individual timestamped quotes. (Trader likes this)
-	quotes          map[int64][]structs.Option          // For holding all of the quotes. (Destiny likes this)
-	quoteNamespace  string                              // restrict to first underlying requested.
-	lastQuoteYYMMDD string                              // track so can reload on new request.
+	getQuotesChan chan getQuotesMessage               // Requests for quotes controlled by this channel.
+	quote         map[int64]map[string]structs.Option // For holding individual timestamped quotes. (Trader likes this)
+}
+
+// Ugly feeling first pass.
+type getQuotesMessage struct {
+	timestamp int64
+	reply     chan map[string]structs.Option
 }
 
 type target struct {
@@ -74,6 +78,7 @@ func New(id string, rootdir string, period int64) *Collector {
 
 	c.period = period
 	c.pipe = make(chan structs.Message, 10000)
+	c.getQuotesChan = make(chan getQuotesMessage, 100)
 	c.quote = map[int64]map[string]structs.Option{}
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
@@ -85,6 +90,22 @@ func New(id string, rootdir string, period int64) *Collector {
 	c.targets["next"] = map[string]target{}
 
 	c.timestamp = fmt.Sprintf("%d", time.Now().UTC().Unix()-time.Now().UTC().Truncate(24*time.Hour).Unix())
+
+	// Process GetQuotes() calls for unloaded data.
+	go func() {
+		for message := range c.getQuotesChan {
+			utcTimestamp := message.timestamp
+			qs, exists := c.quote[utcTimestamp]
+			if !exists {
+				quotes, err := c.getQuotes(utcTimestamp)
+				if err != nil {
+					fmt.Printf("getQuotes() Err: %s\n", err)
+				}
+				qs = quotes
+			}
+			message.reply <- qs
+		}
+	}()
 
 	return c
 }
@@ -443,46 +464,52 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 }
 
 func (c *Collector) GetQuote(utcTimestamp int64, underlying string, symbol string) (structs.Option, error) {
+	var err error
 	quote, exists := c.quote[utcTimestamp][symbol]
-	if exists {
-		return quote, nil
-	}
-	_, exists = c.quote[utcTimestamp]
 	if !exists {
-		c.quote[utcTimestamp] = map[string]structs.Option{}
-	}
-	quotes, err := c.GetQuotes(utcTimestamp, underlying)
-	for _, q := range quotes {
-		if q.Symbol == symbol {
-			quote = q
-			c.quote[utcTimestamp][symbol] = quote
-			break
+		// Missing c.quote info, must populate all quotes.
+		message := getQuotesMessage{timestamp: utcTimestamp}
+		message.reply = make(chan map[string]structs.Option)
+		c.getQuotesChan <- message
+		<-message.reply
+		quote, exists = c.quote[utcTimestamp][symbol]
+		if !exists {
+			err = fmt.Errorf("Symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
 		}
-	}
-	if quote.Symbol != symbol {
-		err = fmt.Errorf("Could not find symbol: %s!", symbol)
 	}
 	return quote, err
 }
 
 func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.Option, error) {
-	// Lazy load entire day and stuff into map[int64][]structs.Option{} ??
-	// Only allow GetQuotes() one underlying symbol per collector instance. ??
-	if c.quoteNamespace == "" {
-		c.quoteNamespace = underlying
-	} else if c.quoteNamespace != underlying {
-		panic("Only allowed to read from one underlying per collector instance.")
+	qs, exists := c.quote[utcTimestamp]
+	if !exists {
+		// Send request down getquotes channel.  Await response.
+		message := getQuotesMessage{timestamp: utcTimestamp}
+		message.reply = make(chan map[string]structs.Option)
+		c.getQuotesChan <- message
+		qs = <-message.reply
 	}
+
+	// Lazy Filter.
+	quotes := []structs.Option{}
+	for _, quote := range qs {
+		if quote.Underlying != underlying {
+			continue
+		}
+		quotes = append(quotes, quote)
+	}
+
+	return quotes, nil
+}
+
+func (c *Collector) getQuotes(utcTimestamp int64) (map[string]structs.Option, error) {
+	// Now just returns all quotes across all symbols.
+	// Will do more clever filtering if required later on.
+
+	// Directly populating c.quote datastructure.
+
 	utcTime := time.Unix(utcTimestamp, 0).UTC()
 	yyyymmdd := utcTime.Format("20060102")
-	if c.lastQuoteYYMMDD == yyyymmdd {
-		return c.quotes[utcTimestamp], nil
-	}
-
-	// Gigantic race condition without something blocking.. or some sort of channel controlling access to this.
-	// With Lockstep mode in Pulsar, can punt on this until I want to have multiple traders requesting data.
-
-	c.quotes = map[int64][]structs.Option{}
 
 	thisFriday := funcs.NextFriday(utcTime).Format("20060102")
 	thisSaturday := funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
@@ -490,8 +517,14 @@ func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.
 	// load livedir /quotes/yyyymmdd, decode, and filter by underlying, expiration.
 	quoteData, err := ioutil.ReadFile(c.livedir + "/quotes/" + yyyymmdd)
 	if err != nil {
-		return []structs.Option{}, err
+		return map[string]structs.Option{}, err
 	}
+
+	quotesCopy := map[int64]map[string]structs.Option{}
+	for ts, quotes := range c.quote {
+		quotesCopy[ts] = quotes
+	}
+
 	for _, line := range bytes.Split(quoteData, []byte("\n")) {
 		ts, _type, encodedEquity := c.parseQuoteLine(string(line))
 		if ts == -1 || _type != "o" {
@@ -499,21 +532,23 @@ func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.
 		}
 		o := structs.Option{}
 		funcs.Decode(encodedEquity, &o, funcs.OptionEncodingOrder)
-		if o.Underlying != underlying {
+		if o.Underlying == "" {
 			continue
 		}
 		if o.Expiration != thisFriday && o.Expiration != thisSaturday {
 			continue
 		}
 
-		// Have proper expiration and underlying.
-		c.quotes[ts] = append(c.quotes[ts], o)
-
+		// Have proper expiration.
+		_, exists := quotesCopy[ts]
+		if !exists {
+			quotesCopy[ts] = map[string]structs.Option{}
+		}
+		quotesCopy[ts][o.Symbol] = o
 	}
-
-	c.lastQuoteYYMMDD = yyyymmdd
-
-	return c.quotes[utcTimestamp], nil
+	// Presumably this is safe since getQuotesChannel disallows concurrent access.
+	c.quote = quotesCopy
+	return c.quote[utcTimestamp], nil
 }
 
 func (c *Collector) loadMaximums() map[string]map[string][]structs.Maximum {

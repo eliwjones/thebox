@@ -53,6 +53,7 @@ func Test_Collector_collect(t *testing.T) {
 
 	seenThisMonth := false
 	seenLimitMonth := false
+	expirationCount := map[string]bool{}
 	// If here, should read out all options.
 	for message := range c.pipe {
 		if message.Data == nil {
@@ -71,13 +72,17 @@ func Test_Collector_collect(t *testing.T) {
 		if o.Expiration[:6] == limitMonth {
 			seenLimitMonth = true
 		}
+		expirationCount[o.Expiration] = true
 	}
 
 	if !seenThisMonth {
 		t.Errorf("Did not see Exp: %s", thisMonth)
 	}
-	if !seenLimitMonth {
-		t.Errorf("Did not see Exp: %s", limitMonth)
+	if len(expirationCount) != 3 {
+		t.Errorf("Expected 3 Expirations. Got: %d", len(expirationCount))
+	}
+	if !seenLimitMonth && len(expirationCount) < 3 {
+		t.Errorf("Did not see Exp: %s and only saw %d expirations.", limitMonth, len(expirationCount))
 	}
 }
 
