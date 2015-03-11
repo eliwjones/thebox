@@ -103,6 +103,17 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 				// Generally would mean at least one position expired worthless.
 				t.Trackers = map[string]Tracker{}
 
+				// Finalize Histories.
+				for id, history := range t.Histories {
+					maximum, err := t.c.GetMaximum(history.OpenTimestamp, history.Symbol)
+					if err != nil {
+						continue
+					}
+					history.MaxClose = maximum.MaximumBid
+					history.MaxTimestamp = maximum.MaxTimestamp
+					t.Histories[id] = history
+				}
+
 				t.CurrentWeekId = weekID
 			}
 			t.consumePoIn(timestamp)
