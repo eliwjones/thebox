@@ -35,14 +35,16 @@ type Collector struct {
 
 	// Most likely ill-advised lazy load structures.
 	// But, in time crunch, and can make sexy when have nothing better to do.  Trading is more important.
-	getQuotesChan chan getQuotesMessage               // Requests for quotes controlled by this channel.
-	quote         map[int64]map[string]structs.Option // For holding individual timestamped quotes. (Trader likes this)
+	lazyLoadChannel chan lazyLoadMessage                 // Requests for quotes controlled by this channel.
+	quote           map[int64]map[string]structs.Option  // For holding individual timestamped quotes. (Trader likes this)
+	maximum         map[int64]map[string]structs.Maximum // Holds maximums for calculating regret versus MaxBid.
 }
 
 // Ugly feeling first pass.
-type getQuotesMessage struct {
-	timestamp int64
-	reply     chan map[string]structs.Option
+type lazyLoadMessage struct {
+	timestamp int64      // Timestamp
+	_type     string     // Maximums or Quotes
+	reply     chan error // Signal when done.
 }
 
 type target struct {
@@ -78,7 +80,7 @@ func New(id string, rootdir string, period int64) *Collector {
 
 	c.period = period
 	c.pipe = make(chan structs.Message, 10000)
-	c.getQuotesChan = make(chan getQuotesMessage, 100)
+	c.lazyLoadChannel = make(chan lazyLoadMessage, 100)
 	c.quote = map[int64]map[string]structs.Option{}
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
@@ -93,17 +95,29 @@ func New(id string, rootdir string, period int64) *Collector {
 
 	// Process GetQuotes() calls for unloaded data.
 	go func() {
-		for message := range c.getQuotesChan {
+		for message := range c.lazyLoadChannel {
+			var err error
 			utcTimestamp := message.timestamp
-			qs, exists := c.quote[utcTimestamp]
-			if !exists {
-				quotes, err := c.getQuotes(utcTimestamp)
-				if err != nil {
-					fmt.Printf("getQuotes() Err: %s\n", err)
+			switch message._type {
+			case "Quotes":
+				_, exists := c.quote[utcTimestamp]
+				if !exists {
+					_, err = c.getQuotes(utcTimestamp)
+					if err != nil {
+						fmt.Printf("getQuotes() Err: %s\n", err)
+					}
 				}
-				qs = quotes
+			case "Maximums":
+				_, exists := c.maximum[utcTimestamp]
+				if !exists {
+					_, err = c.getMaximums(utcTimestamp)
+					if err != nil {
+						fmt.Printf("getMaximums() Err: %s\n", err)
+					}
+				}
+
 			}
-			message.reply <- qs
+			message.reply <- err
 		}
 	}()
 
@@ -403,6 +417,10 @@ func (c *Collector) dumpTargets() {
 	}
 }
 
+func (c *Collector) getMaximums(utcTimestamp int64) (map[string]structs.Maximum, error) {
+	return map[string]structs.Maximum{}, nil
+}
+
 func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	// edgeMap["<Underlying>_<option.type>_<edgeID>"][]structs.Maximum{}
 	edgeMap := map[string][]structs.Maximum{}
@@ -468,10 +486,10 @@ func (c *Collector) GetQuote(utcTimestamp int64, underlying string, symbol strin
 	quote, exists := c.quote[utcTimestamp][symbol]
 	if !exists {
 		// Missing c.quote info, must populate all quotes.
-		message := getQuotesMessage{timestamp: utcTimestamp}
-		message.reply = make(chan map[string]structs.Option)
-		c.getQuotesChan <- message
-		<-message.reply
+		message := lazyLoadMessage{timestamp: utcTimestamp, _type: "Quotes"}
+		message.reply = make(chan error)
+		c.lazyLoadChannel <- message
+		err = <-message.reply
 		quote, exists = c.quote[utcTimestamp][symbol]
 		if !exists {
 			err = fmt.Errorf("Symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
@@ -481,13 +499,15 @@ func (c *Collector) GetQuote(utcTimestamp int64, underlying string, symbol strin
 }
 
 func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.Option, error) {
+	var err error
 	qs, exists := c.quote[utcTimestamp]
 	if !exists {
 		// Send request down getquotes channel.  Await response.
-		message := getQuotesMessage{timestamp: utcTimestamp}
-		message.reply = make(chan map[string]structs.Option)
-		c.getQuotesChan <- message
-		qs = <-message.reply
+		message := lazyLoadMessage{timestamp: utcTimestamp, _type: "Quotes"}
+		message.reply = make(chan error)
+		c.lazyLoadChannel <- message
+		err = <-message.reply
+		qs = c.quote[utcTimestamp]
 	}
 
 	// Lazy Filter.
@@ -499,7 +519,7 @@ func (c *Collector) GetQuotes(utcTimestamp int64, underlying string) ([]structs.
 		quotes = append(quotes, quote)
 	}
 
-	return quotes, nil
+	return quotes, err
 }
 
 func (c *Collector) getQuotes(utcTimestamp int64) (map[string]structs.Option, error) {
