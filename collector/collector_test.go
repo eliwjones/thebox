@@ -345,6 +345,19 @@ func Test_Collector_SerializeMaximums_DeserializeMaximums(t *testing.T) {
 		t.Errorf("Expected:\n%v\nGot:\n%v", maximums, dms)
 	}
 
+	// Test empty maximums.
+	maximums = []structs.Maximum{}
+	sm, err = c.SerializeMaximums(maximums)
+	if err != nil {
+		t.Errorf("Got err: %s", err)
+	}
+	dms, err = c.DeserializeMaximums(sm)
+	if err != nil {
+		t.Errorf("Got err: %s", err)
+	}
+	if !reflect.DeepEqual(maximums, dms) {
+		t.Errorf("Expected:\n%v\nGot:\n%v", maximums, dms)
+	}
 }
 
 func Test_Collector_updateTarget(t *testing.T) {

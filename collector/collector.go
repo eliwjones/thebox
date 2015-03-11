@@ -370,11 +370,15 @@ func (c *Collector) DeserializeMaximums(maximums string) ([]structs.Maximum, err
 	var e error
 	Maximums := []structs.Maximum{}
 	for _, maximum := range strings.Split(maximums, "\n") {
+		if maximum == "" {
+			continue
+		}
 		m := structs.Maximum{}
 		err := funcs.Decode(maximum, &m, funcs.MaximumEncodingOrder)
 		if err != nil {
 			fmt.Printf("Maximum: %s, Err: %s\n", maximum, err)
 			e = err
+			continue
 		}
 		Maximums = append(Maximums, m)
 	}
@@ -884,7 +888,11 @@ func (c *Collector) SerializeMaximums(maximums []structs.Maximum) (string, error
 		}
 		encodedMaximums += m + "\n"
 	}
-	return encodedMaximums[:len(encodedMaximums)-len("\n")], err
+	idx := len(encodedMaximums) - len("\n")
+	if idx < 0 {
+		idx = 0
+	}
+	return encodedMaximums[:idx], err
 }
 
 func (c *Collector) updateMaximum(o structs.Option, timestamp int64) {
