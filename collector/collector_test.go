@@ -120,6 +120,19 @@ func Test_Collector_GetPastNEdges(t *testing.T) {
 	}
 }
 
+func Test_Collector_GetMaximum(t *testing.T) {
+	c := New("test", "../cmd/collectord/testdir", int64(60))
+	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
+	utcTimestamp := t1.UTC().Unix()
+
+	symbol := "AAPL_012315C113"
+
+	_, err := c.GetMaximum(utcTimestamp, symbol)
+	if err != nil {
+		t.Errorf("Did not expect err: %s for ts: %d, symbol: %s", err, utcTimestamp, symbol)
+	}
+}
+
 func Test_Collector_GetQuote(t *testing.T) {
 	c := New("test", "../cmd/collectord/testdir", int64(60))
 	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")

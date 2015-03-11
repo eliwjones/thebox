@@ -82,6 +82,7 @@ func New(id string, rootdir string, period int64) *Collector {
 	c.pipe = make(chan structs.Message, 10000)
 	c.lazyLoadChannel = make(chan lazyLoadMessage, 100)
 	c.quote = map[int64]map[string]structs.Option{}
+	c.maximum = map[int64]map[string]structs.Maximum{}
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
 
@@ -417,8 +418,56 @@ func (c *Collector) dumpTargets() {
 	}
 }
 
+func (c *Collector) GetMaximum(utcTimestamp int64, symbol string) (structs.Maximum, error) {
+	var err error
+	maximum, exists := c.maximum[utcTimestamp][symbol]
+	if !exists {
+		// Missing c.maximum info, must populate all maximums.
+		message := lazyLoadMessage{timestamp: utcTimestamp, _type: "Maximums"}
+		message.reply = make(chan error)
+		c.lazyLoadChannel <- message
+		err = <-message.reply
+		maximum, exists = c.maximum[utcTimestamp][symbol]
+		if !exists {
+			err = fmt.Errorf("Symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
+		}
+	}
+	return maximum, err
+}
+
 func (c *Collector) getMaximums(utcTimestamp int64) (map[string]structs.Maximum, error) {
-	return map[string]structs.Maximum{}, nil
+	// Check NextFriday and Saturday for Maximum data.
+	// Stuff into c.maximum[ts][sybol]
+
+	utcTime := time.Unix(utcTimestamp, 0).UTC()
+	thisFriday := funcs.NextFriday(utcTime).Format("20060102")
+	filepath := c.livedir + "/maximums/" + thisFriday
+	maximumData, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		// Check if this is old Saturday expiration.
+		thisSaturday := funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
+		filepath := c.livedir + "/maximums/" + thisSaturday
+		maximumData, err = ioutil.ReadFile(filepath)
+	}
+	if err != nil {
+		return map[string]structs.Maximum{}, err
+	}
+	maximumCopy := map[int64]map[string]structs.Maximum{}
+	for ts, maxes := range c.maximum {
+		maximumCopy[ts] = maxes
+	}
+	maximums, _ := c.DeserializeMaximums(string(maximumData))
+	for _, maximum := range maximums {
+		_, exists := maximumCopy[maximum.Timestamp]
+		if !exists {
+			maximumCopy[maximum.Timestamp] = map[string]structs.Maximum{}
+		}
+		maximumCopy[maximum.Timestamp][maximum.OptionSymbol] = maximum
+	}
+
+	c.maximum = maximumCopy
+
+	return c.maximum[utcTimestamp], err
 }
 
 func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
