@@ -64,7 +64,7 @@ func main() {
 
 	resultsCounter := 0
 	for t := range traderChannel {
-		t.Historae.Finalize(300000 * 100)
+		t.FinalizeHistorae(300000 * 100)
 
 		positionReturns = append(positionReturns, t.Historae.PositionReturns...)
 		maxPositionReturns = append(maxPositionReturns, t.Historae.MaxPositionReturns...)
@@ -101,12 +101,18 @@ func main() {
 
 	sort.Sort(trader.ByMaxReturn(historae))
 	for idx, h := range historae {
+		fmt.Printf("%d-th Historae\n", idx)
+
+		sort.Sort(trader.ByOpenTimestamp(h.Histories))
+
+		printFloats(trader.ByOpenTimestamp(h.Histories).GetMaxReturns())
+		printFloats(trader.ByOpenTimestamp(h.Histories).GetReturns())
+		printTSDiffs(trader.ByOpenTimestamp(h.Histories).GetTSdiff())
+
 		max, min, med, avg = getDistribution(h.MaxPositionReturns)
-		fmt.Printf("MaxPositionReturns for %d-th Historae\n\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", idx, max, min, med, avg)
-		fmt.Println(h.MaxPositionReturns)
+		fmt.Printf("\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
 		max, min, med, avg = getDistribution(h.PositionReturns)
 		fmt.Printf("\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
-		fmt.Println(h.PositionReturns)
 	}
 
 }
@@ -139,4 +145,30 @@ func runOnce() *trader.Trader {
 	p.Start()
 
 	return t
+}
+
+func printFloats(floats []float64) {
+	fmt.Printf("[")
+
+	for idx, val := range floats {
+		if idx != 0 {
+			fmt.Printf(", ")
+		}
+		fmt.Printf("%.2f", val)
+	}
+
+	fmt.Printf("]\n")
+}
+
+func printTSDiffs(tsdiffs []float64) {
+	fmt.Printf("[")
+	for idx, val := range tsdiffs {
+		if idx != 0 {
+			fmt.Printf(", ")
+		}
+		fmt.Printf("%d", int(val/(60.0*60.0)))
+	}
+
+	fmt.Printf("]\n")
+
 }
