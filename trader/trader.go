@@ -25,6 +25,7 @@ type PostionHistory struct {
 	OpenTimestamp int64  // When was position opened.
 	Symbol        string // Option symbol.
 	Timestamp     int64  // When was position closed.
+	UltimateTS    int64  // Timestamp when all were finalized?
 	Underlying    string // Underlying.. still funky that need this for querying collector.
 	Volume        int    // How many.
 
@@ -50,10 +51,24 @@ func (ph ByOpenTimestamp) GetMaxReturns() []float64 {
 	}
 	return returns
 }
+func (ph ByOpenTimestamp) GetTradeTime() []float64 {
+	returns := []float64{}
+	for _, p := range ph {
+		returns = append(returns, float64(p.OpenTimestamp-p.UltimateTS))
+	}
+	return returns
+}
 func (ph ByOpenTimestamp) GetTSdiff() []float64 {
 	returns := []float64{}
 	for _, p := range ph {
 		returns = append(returns, float64(p.TSdiff))
+	}
+	return returns
+}
+func (ph ByOpenTimestamp) GetUltimateTS() []float64 {
+	returns := []float64{}
+	for _, p := range ph {
+		returns = append(returns, float64(p.UltimateTS))
 	}
 	return returns
 }
@@ -124,6 +139,9 @@ func (t *Trader) FinalizeHistorae(startCash int) {
 
 		// TSdiff
 		tsdiff := p.Timestamp - p.MaxTimestamp
+		if p.MaxTimestamp == 0 {
+			tsdiff = p.Timestamp - p.UltimateTS
+		}
 		t.Historae.Histories[idx].TSdiff = tsdiff
 
 		preturn := float64(100*pcash) / float64(startCash)
@@ -208,6 +226,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 
 	// Sync Orders, Positions and reap Deltas from t.adapter?
 	go func() {
+		lastTimestamp := int64(0)
 		for timestamp := range t.Pulses {
 			weekID := funcs.WeekID(timestamp)
 			if t.CurrentWeekId != weekID && timestamp != -1 {
@@ -225,12 +244,15 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 
 				// Finalize Histories.
 				for id, history := range t.PositionHistory {
-					maximum, err := t.c.GetMaximum(history.OpenTimestamp, history.Symbol)
-					if err != nil {
+					if history.UltimateTS != 0 {
 						continue
 					}
-					history.MaxClose = maximum.MaximumBid
-					history.MaxTimestamp = maximum.MaxTimestamp
+					history.UltimateTS = lastTimestamp
+					maximum, err := t.c.GetMaximum(history.OpenTimestamp, history.Symbol)
+					if err == nil {
+						history.MaxClose = maximum.MaximumBid
+						history.MaxTimestamp = maximum.MaxTimestamp
+					}
 					t.PositionHistory[id] = history
 				}
 
@@ -249,7 +271,6 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 
 			t.sync(timestamp)
 
-			// Sample Bids for Trackers.
 			for positionId, tracker := range t.Trackers {
 				// Get quote for option symbol for current timestamp from collector.
 				// Will need to fix collector.GetQuotes(underlying, timestamp) and add GetQuote(symbol, underlying, timestamp)
@@ -261,59 +282,23 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 					//panic("What broke?")
 					continue
 				}
+				stopv1 := t.optimalStopV1(timestamp, tracker, positionId, q)
+				stopv2 := false // t.optimalStopV2(timestamp, tracker, positionId, q)
 
-				if timestamp-tracker.LastTimestamp < tracker.Distance {
-					// Not enough time has passed, so move along.
-					continue
-				}
-				tracker.LastTimestamp = timestamp
-				tracker.RemainingTS -= 1
+				if stopv1 || stopv2 {
+					t.adapter.ClosePosition(positionId, q.Bid)
 
-				if tracker.SamplesNeeded <= 0 || timestamp > p.Order.ProtoOrder.LimitTS {
-					// Check if current bid is greater than max(tracker.Samples)
-					isMax := true
+					// Add new info to Histories.
+					history := t.PositionHistory[positionId]
+					history.LimitClose = q.Bid
+					history.Timestamp = timestamp
+					t.PositionHistory[positionId] = history
 
-					// Poor Man's Backoff.
-					canBeLessThan := len(tracker.Samples) - tracker.RemainingTS/2
-
-					for _, bid := range tracker.Samples {
-						if bid >= q.Bid {
-							if canBeLessThan > 0 {
-								canBeLessThan -= 1
-								continue
-							}
-							// Can't be max since sampled item is bigger.
-							// Could use a labeled break, but feels wrong.
-							isMax = false
-							break
-						}
-					}
-					t.Trackers[positionId] = tracker
-					if isMax {
-						t.adapter.ClosePosition(positionId, q.Bid)
-
-						// Add new info to Histories.
-						history := t.PositionHistory[positionId]
-						history.LimitClose = q.Bid
-						history.Timestamp = timestamp
-						t.PositionHistory[positionId] = history
-
-						logLine := fmt.Sprintf("%d,order-close,%s,%d", timestamp, positionId, q.Bid)
-						funcs.LazyAppendFile(t.traderDir, "log", logLine)
-						continue
-					}
-				}
-
-				if tracker.SamplesNeeded > 0 {
-					tracker.Samples = append(tracker.Samples, q.Bid)
-
-					tracker.SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
-					tracker.LastSample = timestamp
-
-					t.Trackers[positionId] = tracker
+					logLine := fmt.Sprintf("%d,order-close,%s,%d", timestamp, positionId, q.Bid)
+					funcs.LazyAppendFile(t.traderDir, "log", logLine)
 				}
 			}
-
+			lastTimestamp = timestamp
 			t.PulsarReply <- timestamp
 		}
 	}()
@@ -426,6 +411,7 @@ func (t *Trader) initTracking(p structs.Position, timestamp int64) {
 
 	tracker := Tracker{Distance: interval, RemainingTS: timestamps}
 	tracker.SamplesNeeded = int(float64(timestamps) / math.Exp(1))
+	tracker.SamplesNeeded = int(float64(timestamps) / 1.5)
 
 	tracker.Samples = []int{p.Fillprice}
 	tracker.LastSample = timestamp
@@ -435,6 +421,58 @@ func (t *Trader) initTracking(p structs.Position, timestamp int64) {
 		panic("Someone fucked something up. Either am getting duplicate Order/Position IDs or a Position has disappeared and re-appeared.")
 	}
 	t.Trackers[p.Id] = tracker
+}
+
+func (t *Trader) optimalStopV1(timestamp int64, tracker Tracker, positionId string, q structs.Option) bool {
+	if timestamp-tracker.LastTimestamp < tracker.Distance {
+		// Not enough time has passed, so move along.
+		return false
+	}
+	tracker.LastTimestamp = timestamp
+	tracker.RemainingTS -= 1
+
+	//p := t.Positions[positionId]
+
+	if tracker.SamplesNeeded <= 0 { // || timestamp > p.Order.ProtoOrder.LimitTS {
+		// Check if current bid is greater than max(tracker.Samples)
+		isMax := true
+
+		// Poor Man's Backoff.
+		canBeLessThan := len(tracker.Samples) - tracker.RemainingTS/2
+
+		for _, bid := range tracker.Samples {
+			if bid >= q.Bid {
+				if canBeLessThan > 0 {
+					canBeLessThan -= 1
+					continue
+				}
+				// Can't be max since sampled item is bigger.
+				// Could use a labeled break, but feels wrong.
+				isMax = false
+				break
+			}
+		}
+		t.Trackers[positionId] = tracker
+		if isMax {
+			return true
+		}
+	}
+	if tracker.SamplesNeeded > 0 {
+		tracker.Samples = append(tracker.Samples, q.Bid)
+
+		tracker.SamplesNeeded -= 1 // Not correcting for holidays or gaps, so be warned.
+		tracker.LastSample = timestamp
+
+		t.Trackers[positionId] = tracker
+	}
+	return false
+}
+
+func (t *Trader) optimalStopV2(timestamp int64, tracker Tracker, positionId string, q structs.Option) bool {
+	if (q.Bid / t.Positions[positionId].Fillprice) >= 5 {
+		return true
+	}
+	return false
 }
 
 func (t *Trader) sync(timestamp int64) {
