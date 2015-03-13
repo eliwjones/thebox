@@ -18,8 +18,8 @@ var (
 	c             = collector.New("test_collector", collectorRoot, 60)
 	startTS       = ""
 	stopTS        = ""
-	loops         = 100
-	underlying    = "GOOG"
+	loops         = 500
+	underlying    = "AAPL"
 	weeksBack     = 8
 	multiplier    = 1.0
 	realTime      = false
@@ -81,10 +81,27 @@ func main() {
 			break
 		}
 	}
+	max, min, med, avg := float64(0), float64(0), float64(0), float64(0)
+	sort.Sort(trader.ByMaxReturn(historae))
+	for idx, h := range historae {
+		fmt.Printf("%d-th Historae\n", idx)
 
+		data := trader.ByOpenTimestamp(h.Histories)
+		sort.Sort(data)
+
+		printFloats(data.GetMaxReturns())
+		printFloats(data.GetReturns())
+		printTSDiffs(data.GetTSdiff())
+		printTSDiffs(data.GetTradeTime())
+
+		max, min, med, avg = getDistribution(h.MaxPositionReturns)
+		fmt.Printf("\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
+		max, min, med, avg = getDistribution(h.PositionReturns)
+		fmt.Printf("\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
+	}
 	fmt.Printf("Underlying: %s, WeekCount: %d, TotalPositions:%d\n", underlying, weekCount, totalPositions)
 
-	max, min, med, avg := getDistribution(returns)
+	max, min, med, avg = getDistribution(returns)
 	fmt.Printf("Returns\nMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
 
 	max, min, med, avg = getDistribution(maxreturns)
@@ -98,23 +115,6 @@ func main() {
 
 	max, min, med, avg = getDistribution(positionCounts)
 	fmt.Printf("Positions\nMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
-
-	sort.Sort(trader.ByMaxReturn(historae))
-	for idx, h := range historae {
-		fmt.Printf("%d-th Historae\n", idx)
-
-		sort.Sort(trader.ByOpenTimestamp(h.Histories))
-
-		printFloats(trader.ByOpenTimestamp(h.Histories).GetMaxReturns())
-		printFloats(trader.ByOpenTimestamp(h.Histories).GetReturns())
-		printTSDiffs(trader.ByOpenTimestamp(h.Histories).GetTSdiff())
-
-		max, min, med, avg = getDistribution(h.MaxPositionReturns)
-		fmt.Printf("\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
-		max, min, med, avg = getDistribution(h.PositionReturns)
-		fmt.Printf("\tMax: %.2f, Min: %.2f, Med: %.2f, Avg: %.2f\n", max, min, med, avg)
-	}
-
 }
 
 func getDistribution(slice []float64) (max float64, min float64, med float64, avg float64) {
