@@ -100,6 +100,14 @@ func (h ByMaxReturn) Less(i, j int) bool {
 	return h[i].MaxReturn < h[j].MaxReturn
 }
 
+type ByReturn []Historae
+
+func (h ByReturn) Len() int      { return len(h) }
+func (h ByReturn) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h ByReturn) Less(i, j int) bool {
+	return h[i].Return < h[j].Return
+}
+
 func (t *Trader) FinalizeHistorae(startCash int) {
 	t.Historae = Historae{}
 	t.Historae.Histories = []PostionHistory{}
@@ -523,7 +531,11 @@ func allotments(cash int, value int) []int {
 	a := cash / 100
 	// 10 1% allotments
 	allotments := []int{}
-	for i := 0; i < 10; i++ {
+	count := cash / a
+	if count > 10 {
+		count = 10
+	}
+	for i := 0; i < count; i++ {
 		allotments = append(allotments, a)
 	}
 	return allotments
