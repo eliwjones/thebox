@@ -61,14 +61,14 @@ func (d *Destiny) processPulses() {
 			// Grind into Order.  Send to Trader.
 			// Find quote nearest to edge.
 
-			edgePremiumPct := (float64(edge.OptionAsk) + float64(2.2)) / float64(edge.Strike)
+			edgePremiumPct := funcs.PremiumPct(edge.OptionAsk, edge.Strike, float64(2.2))
 			nearestPremiumPct := float64(1)
 			matchOption := structs.Option{}
 			for _, quote := range quotes {
 				if quote.Type != edge.OptionType {
 					continue
 				}
-				premiumPct := (float64(quote.Ask) + float64(2.2)) / float64(quote.Strike)
+				premiumPct := funcs.PremiumPct(quote.Ask, quote.Strike, float64(2.2))
 				if math.Abs(premiumPct-edgePremiumPct) < math.Abs(nearestPremiumPct-edgePremiumPct) {
 					matchOption = quote
 					nearestPremiumPct = premiumPct

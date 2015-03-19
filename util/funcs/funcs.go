@@ -193,6 +193,10 @@ func NextFriday(t time.Time) time.Time {
 	return t.AddDate(0, 0, distance)
 }
 
+func PremiumPct(ask int, strike int, commission float64) float64 {
+	return (float64(ask) + commission) / float64(strike)
+}
+
 func TimestampID(timestamp int64) int64 {
 	// How many seconds into the week are we?
 	return timestamp - WeekID(timestamp)
