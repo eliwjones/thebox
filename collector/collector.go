@@ -554,8 +554,8 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	return pastNEdges
 }
 
-func (c *Collector) GetPastNMaximums(timestamp int64, underlying string, n int) []structs.Maximum {
-	pastNMaximums := []structs.Maximum{}
+func (c *Collector) GetPastNMaximums(timestamp int64, underlying string, n int) map[string][]structs.Maximum {
+	pastNMaximums := map[string][]structs.Maximum{}
 	oneWeekInSeconds := int64(7 * 24 * 60 * 60)
 
 	for i := 1; i < n+1; i++ {
@@ -577,7 +577,11 @@ func (c *Collector) GetPastNMaximums(timestamp int64, underlying string, n int) 
 		// c.index should contain mapping of Underlying to OptionSymbols.
 		for _, symbol := range c.index[currentTS][underlying] {
 			maximum := c.maximum[currentTS][symbol]
-			pastNMaximums = append(pastNMaximums, maximum)
+			_, exists = pastNMaximums[maximum.Expiration]
+			if !exists {
+				pastNMaximums[maximum.Expiration] = []structs.Maximum{}
+			}
+			pastNMaximums[maximum.Expiration] = append(pastNMaximums[maximum.Expiration], maximum)
 		}
 	}
 	return pastNMaximums

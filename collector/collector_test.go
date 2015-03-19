@@ -140,17 +140,9 @@ func Test_Collector_GetPastNMaximums(t *testing.T) {
 	timestamp := t1.UTC().Unix()
 	n := 4
 	maximums := c.GetPastNMaximums(timestamp, "GOOG", n)
-	expirations := map[string]bool{}
 
-	for _, m := range maximums {
-		if m.Expiration == "" {
-			continue
-		}
-		expirations[m.Expiration] = true
-	}
-
-	if len(expirations) != n {
-		t.Errorf("Expected %d Expirations! Got: %v", n, len(expirations))
+	if len(maximums) != n {
+		t.Errorf("Expected %d Expirations! Got: %v", n, len(maximums))
 	}
 }
 
