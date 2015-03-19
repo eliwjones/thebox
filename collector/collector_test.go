@@ -78,8 +78,8 @@ func Test_Collector_collect(t *testing.T) {
 	if !seenThisMonth {
 		t.Errorf("Did not see Exp: %s", thisMonth)
 	}
-	if len(expirationCount) != 3 {
-		t.Errorf("Expected 3 Expirations. Got: %d", len(expirationCount))
+	if len(expirationCount) < 3 {
+		t.Errorf("Expected At Least 3 Expirations. Got: %d", len(expirationCount))
 	}
 	if !seenLimitMonth && len(expirationCount) < 3 {
 		t.Errorf("Did not see Exp: %s and only saw %d expirations.", limitMonth, len(expirationCount))
@@ -94,6 +94,19 @@ func Test_Collector_dumpTargets(t *testing.T) {
 	c.targets["current"]["BABA"] = target{Timestamp: int64(1234567890)}
 
 	c.dumpTargets()
+}
+
+func Test_Collector_GetMaximum(t *testing.T) {
+	c := New("test", "../cmd/collectord/testdir", int64(60))
+	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
+	utcTimestamp := t1.UTC().Unix()
+
+	symbol := "AAPL_012315C113"
+
+	_, err := c.GetMaximum(utcTimestamp, symbol)
+	if err != nil {
+		t.Errorf("Did not expect err: %s for ts: %d, symbol: %s", err, utcTimestamp, symbol)
+	}
 }
 
 func Test_Collector_GetPastNEdges(t *testing.T) {
@@ -120,16 +133,24 @@ func Test_Collector_GetPastNEdges(t *testing.T) {
 	}
 }
 
-func Test_Collector_GetMaximum(t *testing.T) {
+func Test_Collector_GetPastNMaximums(t *testing.T) {
 	c := New("test", "../cmd/collectord/testdir", int64(60))
+
 	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
-	utcTimestamp := t1.UTC().Unix()
+	timestamp := t1.UTC().Unix()
+	n := 4
+	maximums := c.GetPastNMaximums(timestamp, "GOOG", n)
+	expirations := map[string]bool{}
 
-	symbol := "AAPL_012315C113"
+	for _, m := range maximums {
+		if m.Expiration == "" {
+			continue
+		}
+		expirations[m.Expiration] = true
+	}
 
-	_, err := c.GetMaximum(utcTimestamp, symbol)
-	if err != nil {
-		t.Errorf("Did not expect err: %s for ts: %d, symbol: %s", err, utcTimestamp, symbol)
+	if len(expirations) != n {
+		t.Errorf("Expected %d Expirations! Got: %v", n, len(expirations))
 	}
 }
 

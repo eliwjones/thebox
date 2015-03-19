@@ -38,6 +38,7 @@ type Collector struct {
 	lazyLoadChannel chan lazyLoadMessage                 // Requests for quotes controlled by this channel.
 	quote           map[int64]map[string]structs.Option  // For holding individual timestamped quotes. (Trader likes this)
 	maximum         map[int64]map[string]structs.Maximum // Holds maximums for calculating regret versus MaxBid.
+	index           map[int64]map[string][]string        // Maps timestamp, underlying to slice of quote symbols.
 }
 
 // Ugly feeling first pass.
@@ -83,6 +84,7 @@ func New(id string, rootdir string, period int64) *Collector {
 	c.lazyLoadChannel = make(chan lazyLoadMessage, 100)
 	c.quote = map[int64]map[string]structs.Option{}
 	c.maximum = map[int64]map[string]structs.Maximum{}
+	c.index = map[int64]map[string][]string{}
 	c.replies = make(chan interface{}, 1000)
 	c.symbols = []string{}
 
@@ -444,13 +446,13 @@ func (c *Collector) getMaximums(utcTimestamp int64) (map[string]structs.Maximum,
 	// Stuff into c.maximum[ts][sybol]
 
 	utcTime := time.Unix(utcTimestamp, 0).UTC()
-	thisFriday := funcs.NextFriday(utcTime).Format("20060102")
-	filepath := c.livedir + "/maximums/" + thisFriday
+	expiration := funcs.NextFriday(utcTime).Format("20060102")
+	filepath := c.livedir + "/maximums/" + expiration
 	maximumData, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		// Check if this is old Saturday expiration.
-		thisSaturday := funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
-		filepath := c.livedir + "/maximums/" + thisSaturday
+		expiration = funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
+		filepath := c.livedir + "/maximums/" + expiration
 		maximumData, err = ioutil.ReadFile(filepath)
 	}
 	if err != nil {
@@ -460,16 +462,34 @@ func (c *Collector) getMaximums(utcTimestamp int64) (map[string]structs.Maximum,
 	for ts, maxes := range c.maximum {
 		maximumCopy[ts] = maxes
 	}
+	indexCopy := map[int64]map[string][]string{}
+	for ts, data := range c.index {
+		indexCopy[ts] = data
+	}
+
 	maximums, _ := c.DeserializeMaximums(string(maximumData))
 	for _, maximum := range maximums {
+		maximum.Expiration = expiration
 		_, exists := maximumCopy[maximum.Timestamp]
 		if !exists {
 			maximumCopy[maximum.Timestamp] = map[string]structs.Maximum{}
 		}
 		maximumCopy[maximum.Timestamp][maximum.OptionSymbol] = maximum
+
+		// Populate secondary index.
+		_, exists = indexCopy[maximum.Timestamp]
+		if !exists {
+			indexCopy[maximum.Timestamp] = map[string][]string{}
+		}
+		_, exists = indexCopy[maximum.Timestamp][maximum.Underlying]
+		if !exists {
+			indexCopy[maximum.Timestamp][maximum.Underlying] = []string{}
+		}
+		indexCopy[maximum.Timestamp][maximum.Underlying] = append(indexCopy[maximum.Timestamp][maximum.Underlying], maximum.OptionSymbol)
 	}
 
 	c.maximum = maximumCopy
+	c.index = indexCopy
 
 	return c.maximum[utcTimestamp], err
 }
@@ -532,6 +552,35 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	}
 	sort.Sort(ByTimestampID(pastNEdges))
 	return pastNEdges
+}
+
+func (c *Collector) GetPastNMaximums(timestamp int64, underlying string, n int) []structs.Maximum {
+	pastNMaximums := []structs.Maximum{}
+	oneWeekInSeconds := int64(7 * 24 * 60 * 60)
+
+	for i := 1; i < n+1; i++ {
+		currentTS := timestamp - int64(i)*oneWeekInSeconds
+
+		_, exists := c.maximum[currentTS]
+		if !exists {
+			fmt.Printf("[GetPastNMaximums]: %d not found, Loading!\n", currentTS)
+			// Load them up.
+			message := lazyLoadMessage{timestamp: currentTS, _type: "Maximums"}
+			message.reply = make(chan error)
+			c.lazyLoadChannel <- message
+			err := <-message.reply
+			if err != nil {
+				fmt.Printf("[GetPastNMaximums]: %s\n", err)
+			}
+		}
+		// c.maximum should be populated.
+		// c.index should contain mapping of Underlying to OptionSymbols.
+		for _, symbol := range c.index[currentTS][underlying] {
+			maximum := c.maximum[currentTS][symbol]
+			pastNMaximums = append(pastNMaximums, maximum)
+		}
+	}
+	return pastNMaximums
 }
 
 func (c *Collector) GetQuote(utcTimestamp int64, underlying string, symbol string) (structs.Option, error) {
