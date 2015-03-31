@@ -309,7 +309,7 @@ func (c *Collector) collect(symbol string) (string, string) {
 	options, stock, err := c.Adapter.GetOptions(symbol, thisMonth)
 
 	// Isn't technically safe to write here.. but.. I can stand to lose one error in a race.
-	if err != nil {
+	if err != nil && limitMonth == thisMonth {
 		c.logError("collect ("+thisMonth+") - "+symbol, err)
 		fmt.Println(err)
 		c.replies <- false
