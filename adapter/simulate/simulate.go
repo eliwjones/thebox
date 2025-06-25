@@ -64,7 +64,7 @@ func (s *Simulate) Reset() {
 func (s *Simulate) ClosePosition(id string, limit int) error {
 	p, exists := s.Positions[id]
 	if !exists {
-		return fmt.Errorf("PositionID: %s, Not found!", id)
+		return fmt.Errorf("positionID: %s, not found", id)
 	}
 	// take commission.. transfer value to cash.
 	commission := s.orderCommission(p.Order)
@@ -91,7 +91,7 @@ func (s *Simulate) Commission() map[util.ContractType]map[string]int {
 
 func (s *Simulate) Connect(id string, auth string, token string) (string, error) {
 	if id != "simulate" || auth != "simulation" {
-		return "", errors.New("Auth Failed for user: %s, auth: %s!")
+		return "", fmt.Errorf("auth failed for user: %s, auth: %s", id, auth)
 	}
 	return TOKEN, nil
 }
@@ -102,22 +102,22 @@ func (s *Simulate) ContractMultiplier() map[util.ContractType]int {
 
 func (s *Simulate) Get(table string, key string) (interface{}, error) {
 	if s.Token != TOKEN {
-		return nil, errors.New("Bad Auth Token!")
+		return nil, errors.New("bad auth token")
 	}
 	if s.Tables[table] != 1 {
-		return nil, fmt.Errorf("Invalid table: %s! Choose from: %+v", table, s.Tables)
+		return nil, fmt.Errorf("invalid table: %s choose from: %+v", table, s.Tables)
 	}
 	switch table {
 	case "position":
 		p, exists := s.Positions[key]
 		if !exists {
-			return nil, fmt.Errorf("No Position found for key: %s!", key)
+			return nil, fmt.Errorf("no position found for key: %s", key)
 		}
 		return p, nil
 	case "order":
 		o, exists := s.Orders[key]
 		if !exists {
-			return nil, fmt.Errorf("No Order found for key: %s!", key)
+			return nil, fmt.Errorf("no order found for key: %s", key)
 		}
 		return o, nil
 	case "cash":
@@ -126,12 +126,12 @@ func (s *Simulate) Get(table string, key string) (interface{}, error) {
 		return s.Value, nil
 	}
 
-	return nil, fmt.Errorf("No data found for key: %s!", key)
+	return nil, fmt.Errorf("no data found for key: %s", key)
 }
 
 func (s *Simulate) GetBalances() (map[string]int, error) {
 	if s.Token != TOKEN {
-		return nil, errors.New("Bad Auth Token!")
+		return nil, errors.New("bad auth token")
 	}
 	// More complex api call and munging goes here.
 	return map[string]int{"cash": s.Cash, "value": s.Value}, nil
@@ -173,7 +173,7 @@ func (s *Simulate) GetOptions(symbol string, month string) ([]structs.Option, st
 
 func (s *Simulate) GetOrders(filter string) (map[string]structs.Order, error) {
 	if s.Token != TOKEN {
-		return nil, errors.New("Bad Auth Token!")
+		return nil, errors.New("bad auth token")
 	}
 	// More complex api call and munging goes here.
 	return s.Orders, nil
@@ -181,7 +181,7 @@ func (s *Simulate) GetOrders(filter string) (map[string]structs.Order, error) {
 
 func (s *Simulate) GetPositions() (map[string]structs.Position, error) {
 	if s.Token != TOKEN {
-		return nil, errors.New("Bad Auth Token!")
+		return nil, errors.New("bad auth token")
 	}
 	// More complex api call and munging goes here.
 	return s.Positions, nil
@@ -193,7 +193,7 @@ func (s *Simulate) orderCommission(o structs.Order) int {
 
 func (s *Simulate) SubmitOrder(order structs.Order) (string, error) {
 	if s.Token != TOKEN {
-		return "", errors.New("Bad Auth Token!")
+		return "", errors.New("bad auth token")
 	}
 	orderid := fmt.Sprintf("order-%d", rand.Intn(1000000))
 	order.Id = orderid

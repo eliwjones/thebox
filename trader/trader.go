@@ -326,7 +326,7 @@ func (t *Trader) constructOrder(po structs.ProtoOrder, allotment int) (structs.O
 		o.Maxcost = (o.Volume * o.Limitprice * t.multiplier[o.Type]) + (o.Volume * t.commission[o.Type]["unit"])
 	}
 	if o.Volume <= 0 {
-		return o, errors.New("Impossible order. Not enough Allotment to cover commission.")
+		return o, errors.New("impossible order. not enough allotment to cover commission")
 	}
 	return o, nil
 }

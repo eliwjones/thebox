@@ -73,7 +73,7 @@ func Decode(eo string, c interface{}, encodingOrder []string) error {
 
 	s := strings.Split(eo, ",")
 	if len(s) != len(encodingOrder) {
-		return fmt.Errorf("Expected %d Items.  Got %d Items.", len(encodingOrder), len(s))
+		return fmt.Errorf("expected %d items. got %d items", len(encodingOrder), len(s))
 	}
 	for idx, v := range s {
 		f := r.FieldByName(encodingOrder[idx])
@@ -122,7 +122,7 @@ func Encode(c interface{}, encodingOrder []string) (string, error) {
 		}
 	}
 	if strings.Count(eo[1:], ",")+1 != len(encodingOrder) {
-		return eo[1:], fmt.Errorf("Expected %d Items.  Got %d Items.", len(encodingOrder), strings.Count(eo[1:], ",")+1)
+		return eo[1:], fmt.Errorf("expected %d items. got %d items", len(encodingOrder), strings.Count(eo[1:], ",")+1)
 	}
 	return eo[1:], nil
 }

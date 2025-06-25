@@ -26,7 +26,7 @@ func (m *Money) Get() (structs.Allotment, error) {
 	m.get <- reply
 	allotment := <-reply
 	if allotment == (structs.Allotment{}) {
-		err = errors.New("No Allotments")
+		err = errors.New("no allotments")
 	}
 	return allotment, err
 }
@@ -57,7 +57,7 @@ func (m *Money) getRandomAllotment() (a structs.Allotment, err error) {
 			amt := m.Total / 100
 			a = structs.Allotment{Amount: amt}
 			if amt <= 0 {
-				err = errors.New("Not enough Total Value to connstruct allotment.")
+				err = errors.New("not enough total value to construct allotment")
 			}
 		}
 	}()
