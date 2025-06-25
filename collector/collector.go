@@ -27,7 +27,7 @@ type Collector struct {
 	maximums  map[string]map[string][]structs.Maximum // keyed off of (Expiration, OptionSymbol)
 	period    int64
 	pipe      chan structs.Message
-	replies   chan interface{}
+	replies   chan any
 	rootdir   string
 	symbols   []string
 	targets   map[string]map[string]target // "current", "next" for each SYMBOL.
@@ -86,7 +86,7 @@ func New(id string, rootdir string, period int64) *Collector {
 	c.quote = map[int64]map[string]structs.Option{}
 	c.maximum = map[int64]map[string]structs.Maximum{}
 	c.index = map[int64]map[string][]string{}
-	c.replies = make(chan interface{}, 1000)
+	c.replies = make(chan any, 1000)
 	c.symbols = []string{}
 
 	c.maximums = map[string]map[string][]structs.Maximum{}
@@ -501,7 +501,7 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 
 	pastNFridays := []time.Time{}
 	friday := funcs.NextFriday(time.Unix(utcTimestamp, 0).UTC())
-	for i := 0; i < n; i++ {
+	for range n {
 		friday = friday.AddDate(0, 0, -7)
 		pastNFridays = append(pastNFridays, friday)
 	}
@@ -726,7 +726,7 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 	return targets
 }
 
-func (c *Collector) logError(functionName string, err interface{}) {
+func (c *Collector) logError(functionName string, err any) {
 	err_str := ""
 	switch err := err.(type) {
 	case string:
@@ -907,7 +907,7 @@ func (c *Collector) promoteTarget(t target) {
 	}
 }
 
-func (c *Collector) SaveToLog(message interface{}) (string, string) {
+func (c *Collector) SaveToLog(message any) (string, string) {
 	line := c.timestamp
 
 	switch message := message.(type) {
@@ -939,10 +939,7 @@ func (c *Collector) SerializeMaximums(maximums []structs.Maximum) (string, error
 		}
 		encodedMaximums += m + "\n"
 	}
-	idx := len(encodedMaximums) - len("\n")
-	if idx < 0 {
-		idx = 0
-	}
+	idx := max(len(encodedMaximums)-len("\n"), 0)
 	return encodedMaximums[:idx], err
 }
 

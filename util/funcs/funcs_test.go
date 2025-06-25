@@ -232,7 +232,7 @@ func Test_WeekID(t *testing.T) {
 	// Verify that Sunday - Saturday have same WeekID.
 	sunday := LastSunday(time.Now().UTC())
 	weekID := WeekID(sunday.Unix())
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		currentDay := sunday.AddDate(0, 0, i)
 		if WeekID(currentDay.Unix()) != weekID {
 			t.Errorf("Expected: %d, Got: %d for %s, %s", weekID, WeekID(currentDay.Unix()), currentDay, currentDay.Weekday())

@@ -26,7 +26,7 @@ func Test_Pulsar_Pulsing(t *testing.T) {
 		t.Errorf("Expected: %d, Got: %d", 4, len(p.pulses))
 	}
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		tester := fmt.Sprintf("tester%d", i)
 		tc := make(chan int64, 10)
 		reply := make(chan int64, 10)

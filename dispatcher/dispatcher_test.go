@@ -16,7 +16,7 @@ func Test_Dispatcher_New(t *testing.T) {
 func Test_Dispatcher_Subscribe(t *testing.T) {
 	d := New(1024)
 
-	tc := make(chan interface{}, 10)
+	tc := make(chan any, 10)
 	d.Subscribe("trade", "tester", tc, true)
 	_, exists := d.out["trade"]
 	if !exists {
@@ -39,7 +39,7 @@ func Test_Dispatcher_Send(t *testing.T) {
 	d := New(1024)
 
 	// Subscribe to 'delta' channel.
-	ac := make(chan interface{}, 10)
+	ac := make(chan any, 10)
 	d.Subscribe("allotment", "tester", ac, true)
 
 	allotment := structs.Allotment{Amount: 1000}

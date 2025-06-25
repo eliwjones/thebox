@@ -10,7 +10,7 @@ type Allotment struct {
 
 type AllotmentMessage struct {
 	Allotment Allotment
-	Reply     chan interface{}
+	Reply     chan any
 }
 
 type Maximum struct {
@@ -59,10 +59,10 @@ type Order struct {
 }
 
 type Position struct {
-	Id        string // Some sort of id provided by api adapter?  (Thus can submit stop limit order for buytoclose).
-	Order     Order  // Order that position originated from.
-	Fillprice int    // price per unit paid in cents.
-	Commission int   // How much commission is required to Open, Close position.
+	Id         string // Some sort of id provided by api adapter?  (Thus can submit stop limit order for buytoclose).
+	Order      Order  // Order that position originated from.
+	Fillprice  int    // price per unit paid in cents.
+	Commission int    // How much commission is required to Open, Close position.
 }
 
 type ProtoOrder struct {
@@ -73,17 +73,17 @@ type ProtoOrder struct {
 	Type       util.ContractType // util.OPTION, util.STOCK
 	Underlying string            // Tacking this in here to facilitate Trader GetQuote() lookups.
 
-	Reply chan interface{} `json:"-"`
+	Reply chan any `json:"-"`
 }
 
 type Subscription struct {
-	Id         string           // What is id of thing you are subscribing to.
-	Whoami     string           // Who are you in case we need to delete.
-	Subscriber chan interface{} // Where to send info.
+	Id         string   // What is id of thing you are subscribing to.
+	Whoami     string   // Who are you in case we need to delete.
+	Subscriber chan any // Where to send info.
 }
 
 type Signal struct {
-	Payload interface{}
+	Payload any
 	Wait    chan bool
 }
 
@@ -99,6 +99,6 @@ type Stock struct {
 }
 
 type Message struct {
-	Data  interface{}      // Shall this be an interface?
-	Reply chan interface{} // Reply if needed..
+	Data  any      // Shall this be an interface?
+	Reply chan any // Reply if needed..
 }

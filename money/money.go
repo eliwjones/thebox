@@ -145,7 +145,7 @@ func reallot(cash int) []structs.Allotment {
 	if allotment.Amount <= 0 {
 		return allotments
 	}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		allotments = append(allotments, allotment)
 	}
 	return allotments

@@ -112,7 +112,7 @@ func Test_Money_Processor_Delta(t *testing.T) {
 	oldTotal := m.Total
 	// Send allotments to allotmentIn
 	allotment := structs.Allotment{Amount: m.Total / 1000}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		m.allotmentIn <- allotment
 	}
 	for len(m.allotmentIn) > 0 {
@@ -141,7 +141,7 @@ func Test_Money_Processor_Delta(t *testing.T) {
 func Test_Money_Dispatcher(t *testing.T) {
 	m := New(1000000000)
 
-	ac := make(chan interface{}, 10)
+	ac := make(chan any, 10)
 	m.dispatcher.Subscribe("allotment", "tester", ac, true)
 	a, _ := m.Get()
 	m.dispatcher.Send(a, "allotment")

@@ -99,7 +99,7 @@ func Test_Trader_Processor_ProtoOrder(t *testing.T) {
 	minCommission := td.commission[util.STOCK]["base"] + td.commission[util.STOCK]["unit"]
 	td.Allotments = []int{po.LimitOpen*td.multiplier[util.STOCK] + minCommission}
 
-	reply := make(chan interface{})
+	reply := make(chan any)
 
 	po.Reply = reply
 	td.PoIn <- po

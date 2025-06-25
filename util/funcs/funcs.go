@@ -28,7 +28,7 @@ func ChooseMFromN(m int, n int) []int {
 
 	bag := []int{}
 	chosen := []int{}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		bag = append(bag, i)
 	}
 	if m >= n {
@@ -36,7 +36,7 @@ func ChooseMFromN(m int, n int) []int {
 		// but, if one wants more than there is, one gets all there is.
 		return bag
 	}
-	for i := 0; i < m; i++ {
+	for range m {
 		c := rand.Intn(len(bag))
 		chosen = append(chosen, bag[c])
 		bag = append(bag[:c], bag[c+1:]...)
@@ -68,7 +68,7 @@ func CopyDir(src, dst string) error {
 	})
 }
 
-func Decode(eo string, c interface{}, encodingOrder []string) error {
+func Decode(eo string, c any, encodingOrder []string) error {
 	r := reflect.ValueOf(c).Elem()
 
 	s := strings.Split(eo, ",")
@@ -105,7 +105,7 @@ func Decode(eo string, c interface{}, encodingOrder []string) error {
 	return nil
 }
 
-func Encode(c interface{}, encodingOrder []string) (string, error) {
+func Encode(c any, encodingOrder []string) (string, error) {
 	r := reflect.ValueOf(c).Elem()
 
 	eo := ""

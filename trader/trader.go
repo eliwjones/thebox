@@ -531,10 +531,7 @@ func allotments(cash int, value int) []int {
 	a := cash / 100
 	// 10 1% allotments
 	allotments := []int{}
-	count := cash / a
-	if count > 10 {
-		count = 10
-	}
+	count := min(cash/a, 10)
 	for i := 0; i < count; i++ {
 		allotments = append(allotments, a)
 	}

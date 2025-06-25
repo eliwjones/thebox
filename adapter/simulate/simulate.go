@@ -100,7 +100,7 @@ func (s *Simulate) ContractMultiplier() map[util.ContractType]int {
 	return s.contractMultiplier
 }
 
-func (s *Simulate) Get(table string, key string) (interface{}, error) {
+func (s *Simulate) Get(table string, key string) (any, error) {
 	if s.Token != TOKEN {
 		return nil, errors.New("bad auth token")
 	}
