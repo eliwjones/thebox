@@ -170,7 +170,7 @@ func (c *Collector) RunOnce() {
 	}()
 
 	// Block until done.
-	for _, _ = range c.symbols {
+	for range c.symbols {
 		<-c.replies
 	}
 
@@ -698,7 +698,7 @@ func (c *Collector) loadMaximums() map[string]map[string][]structs.Maximum {
 
 func (c *Collector) loadTargets() map[string]map[string]target {
 	targets := map[string]map[string]target{}
-	for _type, _ := range c.targets {
+	for _type := range c.targets {
 		targets[_type] = map[string]target{}
 
 		path := c.livedir + "/targets/" + _type
@@ -740,7 +740,7 @@ func (c *Collector) logError(functionName string, err interface{}) {
 
 func (c *Collector) maybeCycleMaximums(currentTimestamp int64) {
 	yymmdd := time.Unix(currentTimestamp, 0).Format("20060102")
-	for expiration, _ := range c.maximums {
+	for expiration := range c.maximums {
 		// Not past expiration, do nothing.
 		if yymmdd <= expiration {
 			continue
@@ -803,7 +803,7 @@ func (c *Collector) maybeCycleTargets(current_timestamp int64) {
 	interval := getTenMinTimestamp(current_timestamp)
 	interval_hhmmss := interval % int64(24*60*60)
 
-	for symbol, _ := range c.targets["current"] {
+	for symbol := range c.targets["current"] {
 		// Zero Timestamp suggests there is nothing to promote.
 		if c.targets["current"][symbol].Timestamp == 0 {
 			continue
@@ -958,7 +958,7 @@ func (c *Collector) updateMaximum(o structs.Option, timestamp int64) {
 		return
 	}
 
-	for idx, _ := range c.maximums[o.Expiration][o.Symbol] {
+	for idx := range c.maximums[o.Expiration][o.Symbol] {
 		if o.Bid > c.maximums[o.Expiration][o.Symbol][idx].MaximumBid {
 			c.maximums[o.Expiration][o.Symbol][idx].MaximumBid = o.Bid
 			c.maximums[o.Expiration][o.Symbol][idx].MaxTimestamp = timestamp

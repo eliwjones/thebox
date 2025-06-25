@@ -153,7 +153,7 @@ func (d *Destiny) populateEdges(timestamp int64) {
 		d.edges[timestampID] = append(d.edges[timestampID], edge)
 	}
 	// Limit to multipliers of interest. Also, has effect of removing gaps.
-	for timestampID, _ := range d.edges {
+	for timestampID := range d.edges {
 		d.edges[timestampID] = filterEdgesByMultiplier(d.edges[timestampID], d.edgeMultiplier)
 	}
 

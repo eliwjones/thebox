@@ -511,7 +511,7 @@ func (t *Trader) sync(timestamp int64) {
 			t.PositionCount += 1
 		}
 		// Delete old positions and trackers
-		for id, _ := range t.Positions {
+		for id := range t.Positions {
 			_, found := currentpositions[id]
 			if found {
 				continue
