@@ -91,7 +91,7 @@ func (s *Simulate) Commission() map[util.ContractType]map[string]int {
 
 func (s *Simulate) Connect(id string, auth string, token string) (string, error) {
 	if id != "simulate" || auth != "simulation" {
-		return "", errors.New("auth failed for user: %s, auth: %s")
+		return "", fmt.Errorf("auth failed for user: %s, auth: %s", id, auth)
 	}
 	return TOKEN, nil
 }
