@@ -2,9 +2,10 @@ package funcs
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io/fs"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -48,6 +49,25 @@ func ClockTimeInSeconds(hhmmss string) int64 {
 	return t.Unix() - t.Truncate(24*time.Hour).Unix()
 }
 
+func CopyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+
+		if d.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0644)
+	})
+}
+
 func Decode(eo string, c interface{}, encodingOrder []string) error {
 	r := reflect.ValueOf(c).Elem()
 
@@ -67,11 +87,11 @@ func Decode(eo string, c interface{}, encodingOrder []string) error {
 			}
 			f.SetInt(val)
 		case reflect.Int64:
-			val, err := strconv.ParseFloat(v, 64)
+			val, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
 				return err
 			}
-			f.SetInt(int64(val))
+			f.SetInt(val)
 		case reflect.Float64:
 			val, err := strconv.ParseFloat(v, 64)
 			if err != nil {
@@ -108,7 +128,7 @@ func Encode(c interface{}, encodingOrder []string) (string, error) {
 }
 
 func GetConfig(path string) ([]string, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return []string{}, err
 	}
@@ -170,10 +190,10 @@ func LazyTouchFile(folderName string, fileName string) error {
 }
 
 func LazyWriteFile(folderName string, fileName string, data []byte) error {
-	err := ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
+	err := os.WriteFile(folderName+"/"+fileName, data, 0777)
 	if err != nil {
 		os.MkdirAll(folderName, 0777)
-		err = ioutil.WriteFile(folderName+"/"+fileName, data, 0777)
+		err = os.WriteFile(folderName+"/"+fileName, data, 0777)
 	}
 	if err != nil {
 		fmt.Printf("[LazyWriteFile] Could not WriteFile: %s\nErr: %s\n", folderName+"/"+fileName, err)
@@ -204,7 +224,7 @@ func TimestampID(timestamp int64) int64 {
 
 func UpdateConfig(path string, lines []string) error {
 	f := []byte(strings.Join(lines, "\n"))
-	err := ioutil.WriteFile(path, f, 0777)
+	err := os.WriteFile(path, f, 0777)
 	return err
 }
 

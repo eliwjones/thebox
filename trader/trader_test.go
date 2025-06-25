@@ -36,7 +36,7 @@ func constructValidOptionProtoOrder(td *Trader) structs.ProtoOrder {
 func testTrader() *Trader {
 	os.RemoveAll("testDir")
 
-	c := collector.New("test", "./testdir", int64(60))
+	c := collector.New("test", "../testdata", int64(60))
 	return New("test-id", "testDir", simulate.New("simulate", "simulation", 300000*100), c)
 }
 
@@ -165,7 +165,7 @@ func Test_Trader_serializeState_deserializeState(t *testing.T) {
 	a := simulate.New("simulate", "simulation", 300000*100)
 	// Adapter is source of truth for Positions so add them.
 	a.Positions = td2.Positions
-	c := collector.New("test", "./testdir", int64(60))
+	c := collector.New("test", "../testdata", int64(60))
 	td3 := New("test-id", "testDir", a, c)
 	// Verify td3 received state.
 	if td3.CurrentWeekId != td.CurrentWeekId {

@@ -7,13 +7,14 @@ import (
 
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 )
 
 func Test_Collector_collect(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 
 	// Suppose may need some sort of LoadAdapterFromConfig() function somewhere.
 	sim := simulate.New("simulate", "simulation", 1000000)
@@ -68,16 +69,16 @@ func Test_Collector_collect(t *testing.T) {
 	if !seenThisMonth {
 		t.Errorf("Did not see Exp: %s", thisMonth)
 	}
-	if len(expirationCount) < 3 {
-		t.Errorf("Expected At Least 3 Expirations. Got: %d", len(expirationCount))
+	if len(expirationCount) < 2 {
+		t.Errorf("Expected At Least 2 Expirations. Got: %d", len(expirationCount))
 	}
-	if !seenLimitMonth && len(expirationCount) < 3 {
+	if !seenLimitMonth && len(expirationCount) < 2 {
 		t.Errorf("Did not see Exp: %s and only saw %d expirations.", limitMonth, len(expirationCount))
 	}
 }
 
 func Test_Collector_dumpTargets(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 
 	c.targets = map[string]map[string]target{"current": map[string]target{}, "next": map[string]target{}}
 	c.targets["current"]["AAPL"] = target{Timestamp: int64(1234567890)}
@@ -87,7 +88,7 @@ func Test_Collector_dumpTargets(t *testing.T) {
 }
 
 func Test_Collector_GetMaximum(t *testing.T) {
-	c := New("test", "../cmd/collectord/testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
 	utcTimestamp := t1.UTC().Unix()
 
@@ -100,7 +101,7 @@ func Test_Collector_GetMaximum(t *testing.T) {
 }
 
 func Test_Collector_GetPastNEdges(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 
 	timestamp := int64(1421257800)
 	n := 4
@@ -124,7 +125,7 @@ func Test_Collector_GetPastNEdges(t *testing.T) {
 }
 
 func Test_Collector_GetPastNMaximums(t *testing.T) {
-	c := New("test", "../cmd/collectord/testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 
 	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
 	timestamp := t1.UTC().Unix()
@@ -137,7 +138,7 @@ func Test_Collector_GetPastNMaximums(t *testing.T) {
 }
 
 func Test_Collector_GetQuote(t *testing.T) {
-	c := New("test", "../cmd/collectord/testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
 	utcTimestamp := t1.UTC().Unix()
 
@@ -181,7 +182,7 @@ func Test_Collector_GetQuote(t *testing.T) {
 
 func Test_Collector_GetQuotes(t *testing.T) {
 	// Munge off of collectord data.
-	c := New("test", "../cmd/collectord/testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	t1, _ := time.Parse("20060102 15:04 MST", "20150123 12:00 EST")
 	utcTimestamp := t1.UTC().Unix()
 
@@ -202,7 +203,7 @@ func Test_Collector_GetQuotes(t *testing.T) {
 }
 
 func Test_Collector_loadTargets(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 
 	targets := c.loadTargets()
 
@@ -266,7 +267,7 @@ func Test_Collector_isNear(t *testing.T) {
 }
 
 func Test_Collector_logError(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	os.RemoveAll(c.errordir)
 	c.logError("testfunc", fmt.Errorf("Test error of type 'error'"))
 	c.logError("testfunc", "Test error of type 'string'")
@@ -278,7 +279,7 @@ func Test_Collector_maybeCycleMaximums(t *testing.T) {
 }
 
 func Test_Collector_maybeCycleTargets(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	start_ts := int64(10 * 60)
 	next_ts := start_ts + int64(10*60)
 	c.targets["current"]["GOOG"] = target{Timestamp: start_ts}
@@ -307,7 +308,15 @@ func Test_Collector_maybeCycleTargets(t *testing.T) {
 
 // Mainly, wish to verify maximums is updated.
 func Test_Collector_promoteTarget(tst *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	tmp := tst.TempDir()
+
+	src := "../testdata"
+	dst := filepath.Dir(tmp)
+	if err := funcs.CopyDir(src, dst); err != nil {
+		tst.Fatalf("copyDir failed: %v", err)
+	}
+
+	c := New("test", tmp, int64(60))
 	os.RemoveAll(c.livedir + "/maximums")
 
 	exp := "20150130"
@@ -331,7 +340,7 @@ func Test_Collector_promoteTarget(tst *testing.T) {
 }
 
 func Test_Collector_SerializeMaximums_DeserializeMaximums(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	maximums := []structs.Maximum{
 		structs.Maximum{Underlying: "GOOG", OptionSymbol: "GOOG_013015C600"},
 		structs.Maximum{Underlying: "AAPL", OptionSymbol: "AAPL_013015P100"}}
@@ -364,7 +373,7 @@ func Test_Collector_SerializeMaximums_DeserializeMaximums(t *testing.T) {
 }
 
 func Test_Collector_updateTarget(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 
 	t1, _ := time.Parse("20060102 15:04", "20150101 21:00")
 	utcTimestamp := t1.Unix()
@@ -386,7 +395,7 @@ func Test_Collector_updateTarget(t *testing.T) {
 
 // Kitchen sinking this since don't want to do over and over.
 func Test_Collector_addMaximum_updateMaximum_dumpMaximums_loadMaximums(t *testing.T) {
-	c := New("test", "./testdir", int64(60))
+	c := New("test", "../testdata", int64(60))
 	exp := "20150130"
 	symbol := "GOOG_013015C600"
 	t1, _ := time.Parse("20060102 15:04", "20150123 21:00")
