@@ -1,14 +1,13 @@
 package simulate
 
 import (
-	"time"
-
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"errors"
 	"fmt"
 	"math/rand"
+	"time"
 )
 
 const (
