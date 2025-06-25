@@ -7,6 +7,7 @@ import (
 
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -360,7 +361,7 @@ func (c *Collector) Collect(symbol string) error {
 	if time.Now().Before(tooEarly) || time.Now().After(tooLate) {
 		message := fmt.Sprintf("Time %s is before %s UTC or after %s UTC", time.Now().UTC().Format("15:04:05"), early, late)
 		c.logError("Collect", message)
-		return fmt.Errorf(message)
+		return errors.New(message)
 	}
 
 	c.symbols = append(c.symbols, symbol)
@@ -727,12 +728,11 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 
 func (c *Collector) logError(functionName string, err interface{}) {
 	err_str := ""
-	switch err.(type) {
+	switch err := err.(type) {
 	case string:
-		err_str = err.(string)
+		err_str = err
 	case error:
-		e, _ := err.(error)
-		err_str = fmt.Sprintf("%s", e)
+		err_str = fmt.Sprintf("%s", err)
 	}
 	message := fmt.Sprintf("[%s] %s", functionName, err_str)
 	funcs.LazyAppendFile(c.errordir, time.Now().Format("20060102"), time.Now().Format("15:04:05")+" : "+message)
@@ -910,14 +910,12 @@ func (c *Collector) promoteTarget(t target) {
 func (c *Collector) SaveToLog(message interface{}) (string, string) {
 	line := c.timestamp
 
-	switch message.(type) {
+	switch message := message.(type) {
 	case structs.Stock:
-		s, _ := message.(structs.Stock)
-		es, _ := funcs.Encode(&s, funcs.StockEncodingOrder)
+		es, _ := funcs.Encode(&message, funcs.StockEncodingOrder)
 		line += ",s," + es
 	case structs.Option:
-		o, _ := message.(structs.Option)
-		eo, _ := funcs.Encode(&o, funcs.OptionEncodingOrder)
+		eo, _ := funcs.Encode(&message, funcs.OptionEncodingOrder)
 		line += ",o," + eo
 	default:
 		panic("SaveToLog switching wrong!")
@@ -998,7 +996,7 @@ func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) er
 	target_hhmmss := current_target.Timestamp % int64(24*60*60)
 
 	switch {
-	case 0 == current_target.Timestamp:
+	case current_target.Timestamp == 0:
 		current_target.Timestamp = utc_interval
 		current_target.Options = map[string]structs.Option{}
 		current_target.Options[o.Symbol] = o
@@ -1040,7 +1038,7 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) erro
 	target_hhmmss := current_target.Timestamp % int64(24*60*60)
 
 	switch {
-	case 0 == current_target.Timestamp:
+	case current_target.Timestamp == 0:
 		current_target.Timestamp = utc_interval
 		current_target.Stock = s
 		current_target.Options = map[string]structs.Option{}

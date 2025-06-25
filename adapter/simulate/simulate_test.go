@@ -2,15 +2,13 @@ package simulate
 
 import (
 	"github.com/eliwjones/thebox/util"
-	"github.com/eliwjones/thebox/util/interfaces"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"testing"
 )
 
 func Test_Simulate_Adapter(t *testing.T) {
-	var a interfaces.Adapter
-	a = New("simulate", "simulation", 300000*100)
+	a := New("simulate", "simulation", 300000*100)
 	if a == nil {
 		t.Errorf("%+v", a)
 	}
