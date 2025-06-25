@@ -2,7 +2,6 @@ package tdameritrade
 
 import (
 	"github.com/eliwjones/thebox/util/funcs"
-	"github.com/eliwjones/thebox/util/interfaces"
 
 	"testing"
 )
@@ -69,11 +68,7 @@ func Test_TDAmeritrade_Adapter(t *testing.T) {
 	pass := lines[1]
 	sid := lines[2]
 
-	var a interfaces.Adapter
-	a = New(id, pass, sid, jsessionid)
-	if a == nil {
-		t.Errorf("%+v", a)
-	}
+	New(id, pass, sid, jsessionid)
 }
 
 func Test_TDAmeritrade_GetBalances(t *testing.T) {

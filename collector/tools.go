@@ -96,11 +96,12 @@ func cleanFile(fileName string, contents []byte, _type string) {
 		}
 		equity := string(bytes.Join(columns[1:], []byte(",")))
 		time2 := int64(1)
-		if _type == "stock" {
+		switch _type {
+		case "stock":
 			s := structs.Stock{}
 			funcs.Decode(equity, &s, funcs.StockEncodingOrder)
 			time2 = s.Time
-		} else if _type == "option" {
+		case "option":
 			o := structs.Option{}
 			funcs.Decode(equity, &o, funcs.OptionEncodingOrder)
 			time2 = o.Time
@@ -196,11 +197,12 @@ func migrateFile(fileName string, contents []byte, _type string) {
 		t, _ := time.Parse("150405", string(columns[0]))
 		converted_time := fmt.Sprintf("%d", t.Unix()-t.Truncate(24*time.Hour).Unix())
 		columns[0] = []byte(converted_time)
-		if _type == "stock" {
+		switch _type {
+		case "stock":
 			t, _ = time.Parse("150405", string(columns[2]))
 			converted_time = fmt.Sprintf("%d", t.Unix()-t.Truncate(24*time.Hour).Unix())
 			columns[2] = []byte(converted_time)
-		} else if _type == "option" {
+		case "option":
 			t, _ = time.Parse("150405", string(columns[4]))
 			converted_time = fmt.Sprintf("%d", t.Unix()-t.Truncate(24*time.Hour).Unix())
 			columns[4] = []byte(converted_time)
