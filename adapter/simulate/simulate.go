@@ -1,6 +1,8 @@
 package simulate
 
 import (
+	"time"
+
 	"github.com/eliwjones/thebox/util"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -134,6 +136,40 @@ func (s *Simulate) GetBalances() (map[string]int, error) {
 	}
 	// More complex api call and munging goes here.
 	return map[string]int{"cash": s.Cash, "value": s.Value}, nil
+}
+
+func (s *Simulate) GetOptions(symbol string, month string) ([]structs.Option, structs.Stock, error) {
+	stock := structs.Stock{
+		Symbol: symbol,
+		Bid:    15000,
+		Ask:    15010,
+		Time:   time.Now().UTC().Unix(),
+	}
+
+	expirationDate := month + "15"
+
+	options := []structs.Option{
+		{
+			Symbol:     fmt.Sprintf("%s_%sC155", symbol, month),
+			Underlying: symbol,
+			Strike:     15500,
+			Expiration: expirationDate,
+			Type:       "c",
+			Bid:        50,
+			Ask:        55,
+		},
+		{
+			Symbol:     fmt.Sprintf("%s_%sP145", symbol, month),
+			Underlying: symbol,
+			Strike:     14500,
+			Expiration: expirationDate,
+			Type:       "p",
+			Bid:        40,
+			Ask:        45,
+		},
+	}
+
+	return options, stock, nil
 }
 
 func (s *Simulate) GetOrders(filter string) (map[string]structs.Order, error) {

@@ -1,8 +1,8 @@
 package collector
 
 import (
-	"github.com/eliwjones/thebox/adapter/tdameritrade"
 	"github.com/eliwjones/thebox/util/funcs"
+	"github.com/eliwjones/thebox/util/interfaces"
 	"github.com/eliwjones/thebox/util/structs"
 
 	"bytes"
@@ -31,7 +31,7 @@ type Collector struct {
 	symbols   []string
 	targets   map[string]map[string]target // "current", "next" for each SYMBOL.
 	timestamp string
-	Adapter   *tdameritrade.TDAmeritrade
+	Adapter   interfaces.Adapter
 
 	// Most likely ill-advised lazy load structures.
 	// But, in time crunch, and can make sexy when have nothing better to do.  Trading is more important.
@@ -935,7 +935,7 @@ func (c *Collector) SerializeMaximums(maximums []structs.Maximum) (string, error
 	for _, maximum := range maximums {
 		m, e := funcs.Encode(&maximum, funcs.MaximumEncodingOrder)
 		if e != nil {
-			fmt.Println("[SerializeMaximums] Err encoding maximum: %s", err)
+			fmt.Printf("[SerializeMaximums] Err encoding maximum: %s\n", err)
 			err = e
 			continue
 		}
@@ -990,7 +990,7 @@ func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) er
 	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
 	near, distance := isNear(hhmmss_in_seconds, o.Time, 45)
 	if !near {
-		return fmt.Errorf("%d seconds is too far away.", distance)
+		return fmt.Errorf("%f seconds is too far away.", distance)
 	}
 
 	utc_interval := getTenMinTimestamp(utc_timestamp)
@@ -1032,7 +1032,7 @@ func (c *Collector) updateStockTarget(s structs.Stock, utc_timestamp int64) erro
 	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
 	near, distance := isNear(hhmmss_in_seconds, s.Time, 45)
 	if !near {
-		return fmt.Errorf("%d seconds is too far away. hhmmss_in_seconds: %d", distance, hhmmss_in_seconds)
+		return fmt.Errorf("%f seconds is too far away. hhmmss_in_seconds: %d", distance, hhmmss_in_seconds)
 	}
 
 	utc_interval := getTenMinTimestamp(utc_timestamp)

@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"github.com/eliwjones/thebox/adapter/tdameritrade"
+	"github.com/eliwjones/thebox/adapter/simulate"
 	"github.com/eliwjones/thebox/util/funcs"
 	"github.com/eliwjones/thebox/util/structs"
 
@@ -16,18 +16,8 @@ func Test_Collector_collect(t *testing.T) {
 	c := New("test", "./testdir", int64(60))
 
 	// Suppose may need some sort of LoadAdapterFromConfig() function somewhere.
-	lines, _ := funcs.GetConfig(c.rootdir + "/config")
-	id := lines[0]
-	pass := lines[1]
-	sid := lines[2]
-	jsess := lines[3]
-
-	tda := tdameritrade.New(id, pass, sid, jsess)
-	if tda.JsessionID != jsess {
-		lines[3] = tda.JsessionID
-		funcs.UpdateConfig(c.rootdir+"/config", lines)
-	}
-	c.Adapter = tda
+	sim := simulate.New("simulate", "simulation", 1000000)
+	c.Adapter = sim
 	symbol := "INTC"
 	thisMonth, limitMonth := c.collect(symbol)
 
@@ -237,7 +227,7 @@ func Test_Collector_isNear(t *testing.T) {
 	time2 := funcs.ClockTimeInSeconds("154801")
 	near, diff := isNear(time1, time2, padding)
 	if !near {
-		t.Errorf("Expected near result for: %s, %s", time1, time2)
+		t.Errorf("Expected near result for: %d, %d", time1, time2)
 	}
 	if diff != 0 {
 		t.Errorf("Expected 0, Got: %d", int(diff))
@@ -247,7 +237,7 @@ func Test_Collector_isNear(t *testing.T) {
 	time2 = funcs.ClockTimeInSeconds("154851")
 	near, diff = isNear(time1, time2, padding)
 	if near {
-		t.Errorf("Did not expect near result for: %s, %s", time1, time2)
+		t.Errorf("Did not expect near result for: %d, %d", time1, time2)
 	}
 	if diff != 50 {
 		t.Errorf("Expected 50, Got: %d", int(diff))
@@ -258,7 +248,7 @@ func Test_Collector_isNear(t *testing.T) {
 	time2 = funcs.ClockTimeInSeconds("164821")
 	near, diff = isNear(time1, time2, padding)
 	if !near {
-		t.Errorf("Expected near result for: %s, %s", time1, time2)
+		t.Errorf("Expected near result for: %d, %d", time1, time2)
 	}
 	if diff != 20 {
 		t.Errorf("Expected 20, Got: %d", int(diff))
@@ -268,7 +258,7 @@ func Test_Collector_isNear(t *testing.T) {
 	time2 = funcs.ClockTimeInSeconds("164851")
 	near, diff = isNear(time1, time2, padding)
 	if near {
-		t.Errorf("Did not expect near result for: %s, %s", time1, time2)
+		t.Errorf("Did not expect near result for: %d, %d", time1, time2)
 	}
 	if diff != 50 {
 		t.Errorf("Expected 50, Got: %d", int(diff))
