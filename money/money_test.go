@@ -84,7 +84,7 @@ func Test_Money_ReAllot(t *testing.T) {
 
 func Test_Money_getRandomAllotment(t *testing.T) {
 	m := New(1000000 * 100)
-	a, err := m.getRandomAllotment()
+	_, err := m.getRandomAllotment()
 	if err != nil {
 		t.Errorf("Expected random allotment but got err: %s!", err)
 	}
@@ -93,14 +93,14 @@ func Test_Money_getRandomAllotment(t *testing.T) {
 	for len(m.Allotments) > 0 {
 		m.Get()
 	}
-	a, err = m.getRandomAllotment()
+	_, err = m.getRandomAllotment()
 	if err != nil {
 		t.Errorf("Expected constructed allotment but got err: %s!", err)
 	}
 
 	// Verify works with no Cash and no Allotments.
 	m = New(0)
-	a, err = m.getRandomAllotment()
+	a, err := m.getRandomAllotment()
 	if err == nil {
 		t.Errorf("Expected error, but got Allotment: %+v", a)
 	}
