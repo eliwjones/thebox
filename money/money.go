@@ -57,7 +57,7 @@ func (m *Money) getRandomAllotment() (a structs.Allotment, err error) {
 			amt := m.Total / 100
 			a = structs.Allotment{Amount: amt}
 			if amt <= 0 {
-				err = errors.New("not enough total value to connstruct allotment")
+				err = errors.New("not enough total value to construct allotment")
 			}
 		}
 	}()
