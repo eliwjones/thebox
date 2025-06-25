@@ -252,26 +252,26 @@ func (c *Collector) addMaximum(o structs.Option, s structs.Stock, timestamp int6
 	t, _ := time.Parse("20060102", o.Expiration)
 	expirationDistance := timestamp - t.Unix()
 	if expirationDistance < int64(-6*24*60*60) {
-		return fmt.Errorf("Further than 1 week from expiration. Distance: %d", expirationDistance)
+		return fmt.Errorf("further than 1 week from expiration. distance: %d", expirationDistance)
 	}
 	if expirationDistance > int64(1*24*60*60) {
-		return fmt.Errorf("Expiration past. Distance: %d", expirationDistance)
+		return fmt.Errorf("expiration past. distance: %d", expirationDistance)
 	}
 
 	// Filtering out uninteresting Options here.
 	if o.Ask <= 0 {
-		return fmt.Errorf("Not interested in options with Ask <= 0.")
+		return fmt.Errorf("not interested in options with ask <= 0")
 	}
 	// No idea how Volume could be negative, but not interested in finding out.
 	if o.Volume <= 0 {
-		return fmt.Errorf("Not interested in options with Volume <= 0.")
+		return fmt.Errorf("not interested in options with volume <= 0")
 	}
 	// Only want out-of-the-money options.
 	if o.Type == "c" && o.Strike < s.Bid {
-		return fmt.Errorf("Not interested in out-of-the-money options.")
+		return fmt.Errorf("not interested in out-of-the-money options")
 	}
 	if o.Type == "p" && o.Strike > s.Bid {
-		return fmt.Errorf("Not interested in out-of-the-money options.")
+		return fmt.Errorf("not interested in out-of-the-money options")
 	}
 
 	m := structs.Maximum{}
@@ -349,8 +349,8 @@ func (c *Collector) Collect(symbol string) error {
 	}
 
 	if time.Now().Weekday() == time.Saturday || time.Now().Weekday() == time.Sunday {
-		c.logError("Collect", "No need for Sat, Sun.")
-		return fmt.Errorf("No need for Sat, Sun.")
+		c.logError("Collect", "no need for sat, sun")
+		return fmt.Errorf("no need for sat, sun")
 	}
 	early := "13:28"
 	late := "21:02"
@@ -435,7 +435,7 @@ func (c *Collector) GetMaximum(utcTimestamp int64, symbol string) (structs.Maxim
 		err = <-message.reply
 		maximum, exists = c.maximum[utcTimestamp][symbol]
 		if !exists {
-			err = fmt.Errorf("Symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
+			err = fmt.Errorf("symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
 		}
 	}
 	return maximum, err
@@ -598,7 +598,7 @@ func (c *Collector) GetQuote(utcTimestamp int64, underlying string, symbol strin
 		err = <-message.reply
 		quote, exists = c.quote[utcTimestamp][symbol]
 		if !exists {
-			err = fmt.Errorf("Symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
+			err = fmt.Errorf("symbol: %s does not exist for timestamp: %d", symbol, utcTimestamp)
 		}
 	}
 	return quote, err
@@ -990,7 +990,7 @@ func (c *Collector) updateOptionTarget(o structs.Option, utc_timestamp int64) er
 	hhmmss_in_seconds := utc_timestamp % int64(24*60*60)
 	near, distance := isNear(hhmmss_in_seconds, o.Time, 45)
 	if !near {
-		return fmt.Errorf("%f seconds is too far away.", distance)
+		return fmt.Errorf("%f seconds is too far away", distance)
 	}
 
 	utc_interval := getTenMinTimestamp(utc_timestamp)

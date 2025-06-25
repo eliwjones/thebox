@@ -201,15 +201,15 @@ func (s *TDAmeritrade) GetOptions(symbol string, expire string) ([]structs.Optio
 	result := TDAResponse{}
 	err = xml.Unmarshal(body, &result)
 	if err != nil {
-		return options, stock, fmt.Errorf("body: %s, err: %s", string(body), err)
+		return options, stock, fmt.Errorf("body: %s, err: %s", string(body), err.Error())
 	}
 	if result.Error != "" {
-		return options, stock, fmt.Errorf("API Response Error: " + result.Error)
+		return options, stock, fmt.Errorf("api response error: %s", result.Error)
 	}
 
 	stock = underlyingToStock(result.Underlying)
 	if stock.Symbol != symbol {
-		return options, stock, fmt.Errorf("Stock.symbol: '%s' != '%s'", stock.Symbol, symbol)
+		return options, stock, fmt.Errorf("stock.symbol: '%s' != '%s'", stock.Symbol, symbol)
 	}
 
 	for _, optionchain := range result.Underlying.OptionChains {
@@ -247,7 +247,7 @@ func (s *TDAmeritrade) GetOptions(symbol string, expire string) ([]structs.Optio
 	}
 
 	if len(options) < 6 {
-		return options, stock, fmt.Errorf("Received less than 6 options!")
+		return options, stock, fmt.Errorf("received less than 6 options")
 	}
 
 	return options, stock, nil

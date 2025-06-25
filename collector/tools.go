@@ -30,7 +30,7 @@ func Clean(root_dir string, date string) []error {
 	defer d.Close()
 	symbols, _ := d.Readdirnames(-1)
 	if len(symbols) == 0 {
-		errors = append(errors, fmt.Errorf("Nothing to clean!"))
+		errors = append(errors, fmt.Errorf("nothing to clean"))
 	}
 	for _, symbol := range symbols {
 		options_dir := data_dir + "/" + symbol + "/o"
