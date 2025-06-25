@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -210,7 +210,7 @@ func (c *Collector) ProcessStream(start string, end string) {
 	currentTimestamp := int64(-1)
 	for _, yyyymmdd := range sorted_days {
 		fmt.Println("******************************" + yyyymmdd + "*******************************")
-		log_data, err := ioutil.ReadFile(c.logdir + "/" + yyyymmdd)
+		log_data, err := os.ReadFile(c.logdir + "/" + yyyymmdd)
 		if err != nil {
 			fmt.Println(err)
 			continue
@@ -448,12 +448,12 @@ func (c *Collector) getMaximums(utcTimestamp int64) (map[string]structs.Maximum,
 	utcTime := time.Unix(utcTimestamp, 0).UTC()
 	expiration := funcs.NextFriday(utcTime).Format("20060102")
 	filepath := c.livedir + "/maximums/" + expiration
-	maximumData, err := ioutil.ReadFile(filepath)
+	maximumData, err := os.ReadFile(filepath)
 	if err != nil {
 		// Check if this is old Saturday expiration.
 		expiration = funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
 		filepath := c.livedir + "/maximums/" + expiration
-		maximumData, err = ioutil.ReadFile(filepath)
+		maximumData, err = os.ReadFile(filepath)
 	}
 	if err != nil {
 		return map[string]structs.Maximum{}, err
@@ -508,13 +508,13 @@ func (c *Collector) GetPastNEdges(utcTimestamp int64, n int) []structs.Maximum {
 	for _, friday := range pastNFridays {
 		expiration := friday.Format("20060102")
 		filepath := c.livedir + "/edges/" + expiration
-		edgeData, err := ioutil.ReadFile(filepath)
+		edgeData, err := os.ReadFile(filepath)
 		if err != nil {
 			c.logError("getPastNEdges", err)
 			// Weekly Expiration may be old Saturday type.
 			expiration = friday.AddDate(0, 0, 1).Format("20060102")
 			filepath := c.livedir + "/edges/" + expiration
-			edgeData, err = ioutil.ReadFile(filepath)
+			edgeData, err = os.ReadFile(filepath)
 		}
 		if err != nil {
 			c.logError("getPastNEdges", err)
@@ -641,7 +641,7 @@ func (c *Collector) getQuotes(utcTimestamp int64) (map[string]structs.Option, er
 	thisSaturday := funcs.NextFriday(utcTime).AddDate(0, 0, 1).Format("20060102")
 
 	// load livedir /quotes/yyyymmdd, decode, and filter by underlying, expiration.
-	quoteData, err := ioutil.ReadFile(c.livedir + "/quotes/" + yyyymmdd)
+	quoteData, err := os.ReadFile(c.livedir + "/quotes/" + yyyymmdd)
 	if err != nil {
 		return map[string]structs.Option{}, err
 	}
@@ -681,7 +681,7 @@ func (c *Collector) loadMaximums() map[string]map[string][]structs.Maximum {
 	maximums := map[string]map[string][]structs.Maximum{}
 
 	path := c.livedir + "/maximums/current"
-	data, err := ioutil.ReadFile(path + "/" + c.id)
+	data, err := os.ReadFile(path + "/" + c.id)
 	if err != nil {
 		c.logError("loadMaximums", err)
 		return maximums
@@ -701,7 +701,7 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 		targets[_type] = map[string]target{}
 
 		path := c.livedir + "/targets/" + _type
-		entries, err := ioutil.ReadDir(path)
+		entries, err := os.ReadDir(path)
 		if err != nil {
 			c.logError("loadTargets", err)
 			continue
@@ -711,7 +711,7 @@ func (c *Collector) loadTargets() map[string]map[string]target {
 				continue
 			}
 			symbol := entry.Name()
-			data, err := ioutil.ReadFile(path + "/" + symbol)
+			data, err := os.ReadFile(path + "/" + symbol)
 			if err != nil {
 				c.logError("loadTargets", err)
 				continue

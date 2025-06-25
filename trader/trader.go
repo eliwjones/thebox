@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 	"time"
 )
 
@@ -224,7 +224,7 @@ func New(id string, dataDir string, adapter interfaces.Adapter, c *collector.Col
 	t.traderDir = fmt.Sprintf("%s/%s/trader", t.dataDir, t.id)
 
 	// Ambivalent about need for big, official SerializeAndSaveState() functions..
-	serializedState, _ := ioutil.ReadFile(t.traderDir + "/state")
+	serializedState, _ := os.ReadFile(t.traderDir + "/state")
 	t.deserializeState(serializedState)
 
 	// Sync may overwrite saved state since adapter is source of truth.

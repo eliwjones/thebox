@@ -6,7 +6,6 @@ import (
 
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -55,7 +54,7 @@ func Clean(root_dir string, date string) []error {
 			exp_dir := options_dir + "/" + expiration
 			for _, _type := range []string{"c", "p"} {
 				cleanup_file := exp_dir + "/" + _type + "/" + date
-				contents, err := ioutil.ReadFile(cleanup_file)
+				contents, err := os.ReadFile(cleanup_file)
 				if err != nil {
 					//fmt.Printf("Could not find cleanup_file\n\t%s\n\t%s\n", cleanup_file, err)
 					errors = append(errors, err)
@@ -65,7 +64,7 @@ func Clean(root_dir string, date string) []error {
 			}
 		}
 		stock_file := data_dir + "/" + symbol + "/s/" + date
-		contents, err := ioutil.ReadFile(stock_file)
+		contents, err := os.ReadFile(stock_file)
 		if err != nil {
 			//fmt.Printf("Could not read stock_file! err: %s", err)
 			errors = append(errors, err)
@@ -159,7 +158,7 @@ func Migrate(root_dir string, date string) []error {
 			exp_dir := options_dir + "/" + expiration
 			for _, _type := range []string{"c", "p"} {
 				cleanup_file := exp_dir + "/" + _type + "/" + date
-				contents, err := ioutil.ReadFile(cleanup_file)
+				contents, err := os.ReadFile(cleanup_file)
 				if err != nil {
 					errors = append(errors, err)
 					continue
@@ -168,7 +167,7 @@ func Migrate(root_dir string, date string) []error {
 			}
 		}
 		stock_file := data_dir + "/" + symbol + "/s/" + date
-		contents, err := ioutil.ReadFile(stock_file)
+		contents, err := os.ReadFile(stock_file)
 		if err != nil {
 			errors = append(errors, err)
 			continue

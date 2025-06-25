@@ -7,8 +7,8 @@ import (
 	"github.com/eliwjones/thebox/util/structs"
 
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 	"sort"
 )
 
@@ -96,7 +96,7 @@ func (d *Destiny) processPulses() {
 
 			// Seconds to Max
 			secondsToMax := edge.MaxTimestamp - edge.Timestamp
-			
+
 			// Construct PO.
 			po := structs.ProtoOrder{}
 			po.Timestamp = timestamp
@@ -120,7 +120,7 @@ func (d *Destiny) populateEdges(timestamp int64) {
 
 	filename := fmt.Sprintf("%d", funcs.WeekID(timestamp))
 	path := fmt.Sprintf("%s/destiny/%02d_week_edges", d.dataDir, d.weeksBack)
-	edgeData, err := ioutil.ReadFile(path + "/" + filename)
+	edgeData, err := os.ReadFile(path + "/" + filename)
 	if err != nil {
 		// Not found, load from collector and persist.
 		fmt.Printf("[populateEdges] %s\n", err)
